@@ -109,10 +109,13 @@ func main() {
 
 	poetTemperature := flag.Float64("poet_temperature", 0.99, "temperature for the creator")
 	criticTemperature := flag.Float64("critic_temperature", 0, "temperature for the critic")
+
 	poetMaxTokens := flag.Int("poet_max_tokens", 3000, "maximum tokens for the creator")
 	criticMaxTokens := flag.Int("critic_max_tokens", 3000, "maximum tokens for the critic")
+
 	poetModel := flag.String("poet_model", "gpt-4", "model to use for the creator")
 	criticModel := flag.String("critic_model", "gpt-4", "model to use for the critic")
+
 	genre := flag.String("genre", "haiku", "genre to use for the poem")
 	theme := flag.String("theme", "squirrel falling from a tree", "theme to use for the poem")
 	notes := flag.String("notes", "", "notes to use for the poem")
@@ -146,7 +149,7 @@ func main() {
 
 	poet.Listen(fmt.Sprintf(poetUser, *theme, *genre, *notes))
 
-	poem, err := poet.Respond(context.Background())
+	poem, err := poet.RespondStream(context.Background(), os.Stdout)
 	if err != nil {
 		log.Fatal(err)
 	}

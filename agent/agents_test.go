@@ -40,6 +40,11 @@ func (m *MockClient) CreateChatCompletion(ctx context.Context, req openai.ChatCo
 	return args.Get(0).(openai.ChatCompletionResponse), args.Error(1)
 }
 
+func (m *MockClient) CreateChatCompletionStream(ctx context.Context, req openai.ChatCompletionRequest) (*openai.ChatCompletionStream, error) {
+	args := m.Called(ctx, req)
+	return args.Get(0).(*openai.ChatCompletionStream), args.Error(1)
+}
+
 func TestRespond(t *testing.T) {
 	ctx := context.Background()
 	messages := []openai.ChatCompletionMessage{
