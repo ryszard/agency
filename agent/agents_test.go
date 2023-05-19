@@ -56,11 +56,9 @@ func TestRespond(t *testing.T) {
 	mockClient := &MockClient{}
 	mockCall := mockClient.On("CreateChatCompletion", ctx, mock.Anything).Return(expectedResp, nil)
 
-	ac := &Agent{
-		name:     "Test",
-		client:   mockClient,
-		Messages: messages,
-	}
+	ac := New("Test", WithClient(mockClient))
+	ac.Messages = messages
+
 	// Test success case
 	respMsg, err := ac.Respond(ctx)
 	assert.NoError(t, err)
@@ -68,9 +66,7 @@ func TestRespond(t *testing.T) {
 	assert.Len(t, ac.Messages, 3)
 
 	expectedReq := openai.ChatCompletionRequest{
-		Model:     openai.GPT3Dot5Turbo,
-		Messages:  messages,
-		MaxTokens: 300,
+		Messages: messages,
 	}
 	mockClient.AssertCalled(t, "CreateChatCompletion", ctx, expectedReq)
 
