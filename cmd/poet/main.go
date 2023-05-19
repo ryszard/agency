@@ -6,22 +6,30 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"strconv"
 
 	"github.com/ryszard/agency/agent"
 	"github.com/sashabaranov/go-openai"
 	log "github.com/sirupsen/logrus"
 )
 
-func parseRating(ratingResponse string) (int, error) {
-	// parse a number from 1 to 10 from a ratingResponse
-	i, err := strconv.Atoi(ratingResponse)
-	if err != nil {
-		return 0, err
-	}
-	return i, nil
+var (
+	logLevel = flag.String("log_level", "debug", "log level (trace, debug, info, warning, error, fatal and panic)")
 
-}
+	poetTemperature   = flag.Float64("poet_temperature", 0.99, "temperature for the creator")
+	criticTemperature = flag.Float64("critic_temperature", 0, "temperature for the critic")
+
+	poetMaxTokens   = flag.Int("poet_max_tokens", 3000, "maximum tokens for the creator")
+	criticMaxTokens = flag.Int("critic_max_tokens", 3000, "maximum tokens for the critic")
+
+	poetModel   = flag.String("poet_model", "gpt-4", "model to use for the creator")
+	criticModel = flag.String("critic_model", "gpt-4", "model to use for the critic")
+
+	genre = flag.String("genre", "haiku", "genre to use for the poem")
+	theme = flag.String("theme", "squirrel falling from a tree", "theme to use for the poem")
+	notes = flag.String("notes", "", "notes to use for the poem")
+
+	needsMoreWorkThreshold = flag.Float64("needs_more_work_threshold", 0.0, "threshold for the critic to say that the work needs more work")
+)
 
 var criticSystem = `
 Please act as a literary critic. You will receive a poem with the genre "%s" 
@@ -67,8 +75,8 @@ For example, if the user asks you to write a haiku about a squirrel falling from
 please return something like this (and nothing else):
 """
 {
-  "text": "A squirrel falls\nFrom the tree, and I wonder\nIf it is okay",
   "explanation": "Your explanation here"
+  "text": "A squirrel falls\nFrom the tree, and I wonder\nIf it is okay",
 }
 """
 
@@ -76,8 +84,8 @@ Please remember to always return a JSON object with the two fields above.
 `
 
 type PoetResponse struct {
-	Text        string `json:"text"`
 	Explanation string `json:"explanation"`
+	Text        string `json:"text"`
 }
 
 var poetUser = `
@@ -105,25 +113,8 @@ Please do not forget to return JSON with the two fields: feedback (string) and n
 `
 
 func main() {
-	logLevel := flag.String("log_level", "debug", "log level (trace, debug, info, warning, error, fatal and panic)")
-
-	poetTemperature := flag.Float64("poet_temperature", 0.99, "temperature for the creator")
-	criticTemperature := flag.Float64("critic_temperature", 0, "temperature for the critic")
-
-	poetMaxTokens := flag.Int("poet_max_tokens", 3000, "maximum tokens for the creator")
-	criticMaxTokens := flag.Int("critic_max_tokens", 3000, "maximum tokens for the critic")
-
-	poetModel := flag.String("poet_model", "gpt-4", "model to use for the creator")
-	criticModel := flag.String("critic_model", "gpt-4", "model to use for the critic")
-
-	genre := flag.String("genre", "haiku", "genre to use for the poem")
-	theme := flag.String("theme", "squirrel falling from a tree", "theme to use for the poem")
-	notes := flag.String("notes", "", "notes to use for the poem")
-
-	needsMoreWorkThreshold := flag.Float64("needs_more_work_threshold", 0.0, "threshold for the critic to say that the work needs more work")
-
 	flag.Parse()
-	log.SetFormatter(&log.JSONFormatter{PrettyPrint: true})
+	//	log.SetFormatter(&log.JSONFormatter{PrettyPrint: true})
 	level, err := log.ParseLevel(*logLevel)
 	if err != nil {
 		log.Fatal(err)
@@ -131,6 +122,18 @@ func main() {
 
 	log.SetLevel(level)
 	client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
+
+	log.WithFields(log.Fields{
+		"poet_temperature":   *poetTemperature,
+		"critic_temperature": *criticTemperature,
+		"poet_max_tokens":    *poetMaxTokens,
+		"critic_max_tokens":  *criticMaxTokens,
+		"poet_model":         *poetModel,
+		"critic_model":       *criticModel,
+		"genre":              *genre,
+		"theme":              *theme,
+		"notes":              *notes,
+	}).Info("Starting up")
 
 	poet := agent.New(
 		"poet",
@@ -159,11 +162,16 @@ func main() {
 		log.Fatal(err)
 	}
 
+	iteration := 1
+
+	fmt.Printf("(%v)POET:\n\nPoem:\n\n%s\n\nExplanation:\n\n%s\n\n", iteration, poetResponse.Text, poetResponse.Explanation)
+
 	needsMoreWork := 1.0
 
 	for needsMoreWork > *needsMoreWorkThreshold {
+		iteration++
 		critic.Listen(fmt.Sprintf(criticUser, poetResponse.Text, poetResponse.Explanation, *notes))
-		feedback, err := critic.Respond(context.Background())
+		feedback, err := critic.RespondStream(context.Background(), os.Stdout)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -173,9 +181,10 @@ func main() {
 			log.Fatal(err)
 		}
 		needsMoreWork = criticResponse.NeedsMoreWork
+		fmt.Printf("CRITIC:\n\nFeedback:\n\n%s\n\n(Needs More Work: %f)\n\n", criticResponse.Feedback, criticResponse.NeedsMoreWork)
 
 		poet.Listen(criticResponse.Feedback)
-		poem, err = poet.Respond(context.Background())
+		poem, err = poet.RespondStream(context.Background(), os.Stdout)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -183,6 +192,7 @@ func main() {
 		if err := json.Unmarshal([]byte(poem), &poetResponse); err != nil {
 			log.Fatal(err)
 		}
+		fmt.Printf("(%v)POET:\n\nPoem:\n\n%s\n\nExplanation:\n\n%s\n\n", iteration, poetResponse.Text, poetResponse.Explanation)
 	}
 
 }

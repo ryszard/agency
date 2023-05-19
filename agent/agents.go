@@ -17,6 +17,10 @@ type Agent struct {
 	config   agentConfig
 }
 
+func (ag *Agent) Name() string {
+	return ag.name
+}
+
 func New(name string, options ...Option) *Agent {
 	ag := &Agent{
 		name: name,
@@ -79,7 +83,8 @@ func (ag *Agent) Respond(ctx context.Context, options ...Option) (message string
 }
 
 // RespondStream gets a response from the actor, basing on the current
-// conversation. It will stream the response to the provided writer.
+// conversation. It will stream the response to the provided writer and return
+// the whole response as a string.
 func (ag *Agent) RespondStream(ctx context.Context, w io.Writer, options ...Option) (message string, err error) {
 	cfg, req := ag.createRequest(options)
 	logger := log.WithField("actor", ag.name)
