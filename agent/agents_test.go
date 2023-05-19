@@ -11,12 +11,12 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func TestActorSystem(t *testing.T) {
+func TestAgentSystem(t *testing.T) {
 	t.Run("System message is added to the actor's messages", func(t *testing.T) {
-		actor := &Actor{}
+		ag := &Agent{}
 		systemMessage := "Test system message"
 
-		actor.System(systemMessage)
+		ag.System(systemMessage)
 
 		want := []openai.ChatCompletionMessage{
 			{
@@ -25,8 +25,8 @@ func TestActorSystem(t *testing.T) {
 			},
 		}
 
-		if !reflect.DeepEqual(actor.Messages, want) {
-			t.Errorf("got %v, want %v", actor.Messages, want)
+		if !reflect.DeepEqual(ag.Messages, want) {
+			t.Errorf("got %v, want %v", ag.Messages, want)
 		}
 	})
 }
@@ -56,7 +56,7 @@ func TestRespond(t *testing.T) {
 	mockClient := &MockClient{}
 	mockCall := mockClient.On("CreateChatCompletion", ctx, mock.Anything).Return(expectedResp, nil)
 
-	ac := &Actor{
+	ac := &Agent{
 		name:     "Test",
 		client:   mockClient,
 		Messages: messages,
