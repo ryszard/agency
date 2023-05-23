@@ -14,7 +14,7 @@ import (
 type Agent struct {
 	name     string
 	Messages []openai.ChatCompletionMessage
-	config   agentConfig
+	Config   agentConfig
 }
 
 func (ag *Agent) Name() string {
@@ -27,7 +27,7 @@ func New(name string, options ...Option) *Agent {
 	}
 
 	for _, opt := range options {
-		opt(&ag.config)
+		opt(&ag.Config)
 	}
 
 	return ag
@@ -50,7 +50,7 @@ func (ag *Agent) Listen(message string) {
 }
 
 func (ag *Agent) createRequest(options []Option) (agentConfig, openai.ChatCompletionRequest) {
-	cfg := ag.config.clone()
+	cfg := ag.Config.clone()
 	for _, opt := range options {
 		opt(&cfg)
 	}
@@ -61,6 +61,8 @@ func (ag *Agent) createRequest(options []Option) (agentConfig, openai.ChatComple
 }
 
 // Respond gets a response from the actor, basing on the current conversation.
+// The options passed to Respond will be applied for this call, but won't affect
+// subsequent calls.
 func (ag *Agent) Respond(ctx context.Context, options ...Option) (message string, err error) {
 
 	logger := log.WithField("actor", ag.name)
