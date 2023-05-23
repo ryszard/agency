@@ -14,7 +14,7 @@ import (
 type Agent struct {
 	name     string
 	Messages []openai.ChatCompletionMessage
-	Config   agentConfig
+	Config   Config
 }
 
 func (ag *Agent) Name() string {
@@ -49,7 +49,7 @@ func (ag *Agent) Listen(message string) {
 	})
 }
 
-func (ag *Agent) createRequest(options []Option) (agentConfig, openai.ChatCompletionRequest) {
+func (ag *Agent) createRequest(options []Option) (Config, openai.ChatCompletionRequest) {
 	cfg := ag.Config.clone()
 	for _, opt := range options {
 		opt(&cfg)

@@ -3,9 +3,9 @@ package agent
 import "github.com/sashabaranov/go-openai"
 
 // Option is a function that configures the agent.
-type Option func(*agentConfig)
+type Option func(*Config)
 
-type agentConfig struct {
+type Config struct {
 	Model            string
 	MaxTokens        int
 	Temperature      float32
@@ -19,7 +19,7 @@ type agentConfig struct {
 	Client           Client
 }
 
-func (ac agentConfig) chatCompletionRequest() openai.ChatCompletionRequest {
+func (ac Config) chatCompletionRequest() openai.ChatCompletionRequest {
 	return openai.ChatCompletionRequest{
 		Model:            ac.Model,
 		MaxTokens:        ac.MaxTokens,
@@ -34,8 +34,8 @@ func (ac agentConfig) chatCompletionRequest() openai.ChatCompletionRequest {
 	}
 }
 
-func (ac agentConfig) clone() agentConfig {
-	return agentConfig{
+func (ac Config) clone() Config {
+	return Config{
 		Model:            ac.Model,
 		MaxTokens:        ac.MaxTokens,
 		Temperature:      ac.Temperature,
@@ -52,8 +52,8 @@ func (ac agentConfig) clone() agentConfig {
 
 // WithModel creates a function that sets the model field of agentConfig. The
 // returned function can be used as an option to configure the agent.
-func WithModel(model string) func(*agentConfig) {
-	return func(ac *agentConfig) {
+func WithModel(model string) func(*Config) {
+	return func(ac *Config) {
 		ac.Model = model
 	}
 }
@@ -61,8 +61,8 @@ func WithModel(model string) func(*agentConfig) {
 // WithMaxTokens creates a function that sets the MaxTokens field of
 // agentConfig. The returned function can be used as an option to configure the
 // agent.
-func WithMaxTokens(maxTokens int) func(*agentConfig) {
-	return func(ac *agentConfig) {
+func WithMaxTokens(maxTokens int) func(*Config) {
+	return func(ac *Config) {
 		ac.MaxTokens = maxTokens
 	}
 }
@@ -70,32 +70,32 @@ func WithMaxTokens(maxTokens int) func(*agentConfig) {
 // WithTemperature creates a function that sets the Temperature field of
 // agentConfig. The returned function can be used as an option to configure the
 // agent.
-func WithTemperature(temperature float32) func(*agentConfig) {
-	return func(ac *agentConfig) {
+func WithTemperature(temperature float32) func(*Config) {
+	return func(ac *Config) {
 		ac.Temperature = temperature
 	}
 }
 
 // WithTopP creates a function that sets the TopP field of agentConfig. The
 // returned function can be used as an option to configure the agent.
-func WithTopP(topP float32) func(*agentConfig) {
-	return func(ac *agentConfig) {
+func WithTopP(topP float32) func(*Config) {
+	return func(ac *Config) {
 		ac.TopP = topP
 	}
 }
 
 // WithStream creates a function that sets the Stream field of agentConfig. The
 // returned function can be used as an option to configure the agent.
-func WithStream(stream bool) func(*agentConfig) {
-	return func(ac *agentConfig) {
+func WithStream(stream bool) func(*Config) {
+	return func(ac *Config) {
 		ac.Stream = stream
 	}
 }
 
 // WithStop creates a function that sets the Stop field of agentConfig. The
 // returned function can be used as an option to configure the agent.
-func WithStop(stop []string) func(*agentConfig) {
-	return func(ac *agentConfig) {
+func WithStop(stop []string) func(*Config) {
+	return func(ac *Config) {
 		ac.Stop = stop
 	}
 }
@@ -103,8 +103,8 @@ func WithStop(stop []string) func(*agentConfig) {
 // WithPresencePenalty creates a function that sets the PresencePenalty field of
 // agentConfig. The returned function can be used as an option to configure the
 // agent.
-func WithPresencePenalty(presencePenalty float32) func(*agentConfig) {
-	return func(ac *agentConfig) {
+func WithPresencePenalty(presencePenalty float32) func(*Config) {
+	return func(ac *Config) {
 		ac.PresencePenalty = presencePenalty
 	}
 }
@@ -112,8 +112,8 @@ func WithPresencePenalty(presencePenalty float32) func(*agentConfig) {
 // WithFrequencyPenalty creates a function that sets the FrequencyPenalty field
 // of agentConfig. The returned function can be used as an option to configure
 // the agent.
-func WithFrequencyPenalty(frequencyPenalty float32) func(*agentConfig) {
-	return func(ac *agentConfig) {
+func WithFrequencyPenalty(frequencyPenalty float32) func(*Config) {
+	return func(ac *Config) {
 		ac.FrequencyPenalty = frequencyPenalty
 	}
 }
@@ -121,24 +121,24 @@ func WithFrequencyPenalty(frequencyPenalty float32) func(*agentConfig) {
 // WithLogitBias creates a function that sets the LogitBias field of
 // agentConfig. The returned function can be used as an option to configure the
 // agent.
-func WithLogitBias(logitBias map[string]int) func(*agentConfig) {
-	return func(ac *agentConfig) {
+func WithLogitBias(logitBias map[string]int) func(*Config) {
+	return func(ac *Config) {
 		ac.LogitBias = logitBias
 	}
 }
 
 // WithUser creates a function that sets the User field of agentConfig. The
 // returned function can be used as an option to configure the agent.
-func WithUser(user string) func(*agentConfig) {
-	return func(ac *agentConfig) {
+func WithUser(user string) func(*Config) {
+	return func(ac *Config) {
 		ac.User = user
 	}
 }
 
 // WithClient creates a function that sets the Client field of agentConfig. The
 // returned function can be used as an option to configure the agent.
-func WithClient(client Client) func(*agentConfig) {
-	return func(ac *agentConfig) {
+func WithClient(client Client) func(*Config) {
+	return func(ac *Config) {
 		ac.Client = client
 	}
 }
