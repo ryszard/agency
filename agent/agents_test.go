@@ -61,7 +61,7 @@ func TestRespond(t *testing.T) {
 	mockClient := &MockClient{}
 	mockCall := mockClient.On("CreateChatCompletion", ctx, mock.Anything).Return(expectedResp, nil)
 
-	ac := New("Test", WithClient(mockClient))
+	ac := NewBaseAgent("Test", WithClient(mockClient))
 	ac.messages = messages
 
 	// Test success case

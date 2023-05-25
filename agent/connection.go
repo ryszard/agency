@@ -43,7 +43,14 @@ type retryingClient struct {
 	maxRetries int
 }
 
+// Retrying wraps a Client and retries requests if they fail, using exponential
+// backoff. After the first failure, it will wait baseWait, then twice that,
+// until it reaches either maxWait, or has made maxRetries attempts. Pass -1 to
+// maxRetries to retry forever. Retrying will panic if maxRetries is 0.
 func Retrying(client Client, baseWait time.Duration, maxWait time.Duration, maxRetries int) Client {
+	if maxRetries == 0 {
+		panic("maxRetries must not be 0")
+	}
 	return &retryingClient{
 		client:     client,
 		baseWait:   baseWait,

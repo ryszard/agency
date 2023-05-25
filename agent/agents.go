@@ -34,12 +34,6 @@ type Agent interface {
 	// call, but won't affect subsequent calls.
 	Respond(ctx context.Context, options ...Option) (message string, err error)
 
-	// RespondStream gets a response from the agent, basing on the current
-	// conversation. The options passed to Respond will be applied for this
-	// call, but won't affect subsequent calls. The response will be streamed
-	// to the writer, but also returned as a string.
-	RespondStream(ctx context.Context, options ...Option) (message string, err error)
-
 	// Messages returns all messages that the agent has sent and received.
 	Messages() []openai.ChatCompletionMessage
 
@@ -50,9 +44,16 @@ type Agent interface {
 	Config() Config
 }
 
+// New returns a new Agent with the given name and options. It will be backed by
+// a BaseAgent.
+func New(name string, options ...Option) Agent {
+	return NewBaseAgent(name, options...)
+}
+
 var _ Agent = &BaseAgent{}
 
-// BaseAgent is a basic implementation of the Agent interface.
+// BaseAgent is a basic implementation of the Agent interface. You most likely
+// want to use it as a base for your own agents.
 type BaseAgent struct {
 	name     string
 	messages []openai.ChatCompletionMessage
@@ -71,7 +72,8 @@ func (ag *BaseAgent) Name() string {
 	return ag.name
 }
 
-func New(name string, options ...Option) *BaseAgent {
+// NewBaseAgent returns a BaseAgent with the given name and options.
+func NewBaseAgent(name string, options ...Option) *BaseAgent {
 	ag := &BaseAgent{
 		name: name,
 	}
@@ -129,6 +131,10 @@ func (ag *BaseAgent) Respond(ctx context.Context, options ...Option) (message st
 
 	cfg, req := ag.createRequest(options)
 
+	if cfg.Stream() {
+		return ag.respondStream(ctx, options...)
+	}
+
 	logger.WithField("request", fmt.Sprintf("%+v", req)).Info("Sending request")
 	resp, err := cfg.Client.CreateChatCompletion(ctx, req)
 	logger.WithError(err).WithField("response", fmt.Sprintf("%+v", resp)).Debug("Received response from OpenAI API")
@@ -144,7 +150,7 @@ func (ag *BaseAgent) Respond(ctx context.Context, options ...Option) (message st
 	return msg.Content, nil
 }
 
-func (ag *BaseAgent) RespondStream(ctx context.Context, options ...Option) (string, error) {
+func (ag *BaseAgent) respondStream(ctx context.Context, options ...Option) (string, error) {
 	cfg, req := ag.createRequest(options)
 	logger := log.WithField("actor", ag.name)
 

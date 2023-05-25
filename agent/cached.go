@@ -10,10 +10,12 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// Cache is an interface for a cache. It is used to store the responses to
-// the agent's messages.
+// Cache is an interface for a cache that you need to pass to Cached. It is used
+// to store the responses to the agent's messages.
 type Cache interface {
-	Get(key []byte) ([]byte, error)
+	// Get returns the value for the given key. If the key does not exist,
+	// ok will be false.
+	Get(key []byte) (value []byte, ok bool, err error)
 	Set(key []byte, value []byte) error
 }
 
@@ -36,7 +38,6 @@ type cachedAgent struct {
 
 func (ag *cachedAgent) hash(options ...Option) (string, Config, error) {
 
-	// convert ag.Messages() to JSON and put it in data
 	messagesJSON, err := json.Marshal(ag.Messages())
 	if err != nil {
 		log.WithError(err).Error("failed to marshal messages")
@@ -65,7 +66,12 @@ func (ag *cachedAgent) Respond(ctx context.Context, options ...Option) (message 
 	if err != nil {
 		return "", err
 	}
-	if cached, err := ag.cache.Get([]byte(hash)); err == nil {
+	cached, ok, err := ag.cache.Get([]byte(hash))
+	if err != nil {
+		return "", err
+	}
+
+	if ok {
 		log.WithField("hash", hash).Debug("cached response")
 		ag.Append(openai.ChatCompletionMessage{
 			Content: string(cached),
@@ -75,30 +81,6 @@ func (ag *cachedAgent) Respond(ctx context.Context, options ...Option) (message 
 	}
 
 	message, err = ag.Agent.Respond(ctx, options...)
-	if err != nil {
-		return "", err
-	}
-
-	err = ag.cache.Set([]byte(hash), []byte(message))
-	return message, err
-}
-
-func (ag *cachedAgent) RespondStream(ctx context.Context, options ...Option) (message string, err error) {
-	hash, cfg, err := ag.hash(options...)
-	if err != nil {
-		return "", err
-	}
-	if cached, err := ag.cache.Get([]byte(hash)); err == nil {
-		ag.Append(openai.ChatCompletionMessage{
-			Content: string(cached),
-			Role:    openai.ChatMessageRoleAssistant,
-		})
-		cfg.out().Write([]byte(cached))
-		cfg.out().Write([]byte("\n"))
-		return string(cached), nil
-	}
-
-	message, err = ag.Agent.RespondStream(ctx, options...)
 	if err != nil {
 		return "", err
 	}

@@ -62,19 +62,19 @@ func main() {
 
 	flow.IntentionEvaluator.Listen("emotional_state", message)
 
-	emotionalState, err := flow.IntentionEvaluator.RespondStream(context.Background())
+	emotionalState, err := flow.IntentionEvaluator.Respond(context.Background())
 	if err != nil {
 		log.WithError(err).Fatal("can't respond")
 	}
 
 	flow.IntentionEvaluator.Listen("desired_response", nil)
-	desiredResponse, err := flow.IntentionEvaluator.RespondStream(context.Background())
+	desiredResponse, err := flow.IntentionEvaluator.Respond(context.Background())
 	if err != nil {
 		log.WithError(err).Fatal("can't respond")
 	}
 
 	flow.IntentionEvaluator.Listen("criteria", desiredResponse)
-	criteria, err := flow.IntentionEvaluator.RespondStream(context.Background())
+	criteria, err := flow.IntentionEvaluator.Respond(context.Background())
 	if err != nil {
 		log.WithError(err).Fatal("can't respond")
 	}
@@ -94,7 +94,7 @@ func main() {
 
 	log.WithField("author messages", flow.Author.Messages()).Debug("author messages after Listen")
 
-	reply, err := flow.Author.RespondStream(context.Background())
+	reply, err := flow.Author.Respond(context.Background())
 	if err != nil {
 		log.WithError(err).Fatal("can't respond")
 	}

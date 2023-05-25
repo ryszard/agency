@@ -21,7 +21,7 @@ func (cfg *AgentConfig) Agent(name string, client agent.Client, out io.Writer, c
 	ag = agent.New(name,
 		agent.WithConfig(cfg.Config),
 		agent.WithClient(client),
-		agent.WithOutput(out))
+		agent.WithStreaming(out))
 
 	log.WithField("name", name).WithField("agent", fmt.Sprintf("%+v", ag)).Debug("agent created")
 

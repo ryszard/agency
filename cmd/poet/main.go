@@ -140,19 +140,21 @@ func main() {
 		agent.WithClient(client),
 		agent.WithModel(*poetModel),
 		agent.WithTemperature(float32(*poetTemperature)),
-		agent.WithMaxTokens(*poetMaxTokens))
+		agent.WithMaxTokens(*poetMaxTokens),
+		agent.WithStreaming(os.Stdout))
 	poet.System(poetSystem)
 	critic := agent.New("critic",
 		agent.WithClient(client),
 		agent.WithModel(*criticModel),
 		agent.WithTemperature(float32(*criticTemperature)),
-		agent.WithMaxTokens(*criticMaxTokens))
+		agent.WithMaxTokens(*criticMaxTokens),
+		agent.WithStreaming(os.Stdout))
 
 	critic.System(fmt.Sprintf(criticSystem, *genre, *theme, *notes))
 
 	poet.Listen(fmt.Sprintf(poetUser, *theme, *genre, *notes))
 
-	poem, err := poet.RespondStream(context.Background(), os.Stdout)
+	poem, err := poet.Respond(context.Background())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -171,7 +173,7 @@ func main() {
 	for needsMoreWork > *needsMoreWorkThreshold {
 		iteration++
 		critic.Listen(fmt.Sprintf(criticUser, poetResponse.Text, poetResponse.Explanation, *notes))
-		feedback, err := critic.RespondStream(context.Background(), os.Stdout)
+		feedback, err := critic.Respond(context.Background())
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -184,7 +186,7 @@ func main() {
 		fmt.Printf("CRITIC:\n\nFeedback:\n\n%s\n\n(Needs More Work: %f)\n\n", criticResponse.Feedback, criticResponse.NeedsMoreWork)
 
 		poet.Listen(criticResponse.Feedback)
-		poem, err = poet.RespondStream(context.Background(), os.Stdout)
+		poem, err = poet.Respond(context.Background())
 		if err != nil {
 			log.Fatal(err)
 		}

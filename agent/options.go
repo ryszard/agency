@@ -6,7 +6,10 @@ import (
 	"github.com/sashabaranov/go-openai"
 )
 
-// Option is a function that configures the agent.
+// Option can be used to configure an agent. Note that the order in which you
+// pass options to an agent is important, as they will be applied in the same
+// order. So, for example, if you pass WithModel twice with different models,
+// the second one will overwrite the first one.
 type Option func(*Config)
 
 type Config struct {
@@ -15,7 +18,6 @@ type Config struct {
 	MaxTokens        int
 	Temperature      float32
 	TopP             float32
-	Stream           bool
 	Stop             []string
 	PresencePenalty  float32
 	FrequencyPenalty float32
@@ -30,6 +32,13 @@ type Config struct {
 	Output io.Writer `json:"-"`
 }
 
+// Stream returns true if the agent is configured to stream its output.
+func (cfg Config) Stream() bool {
+	return cfg.Output != nil
+}
+
+// TODO(ryszard): Remove out.
+
 func (ac Config) out() io.Writer {
 	if ac.Output != nil {
 		return ac.Output
@@ -43,7 +52,7 @@ func (ac Config) chatCompletionRequest() openai.ChatCompletionRequest {
 		MaxTokens:        ac.MaxTokens,
 		Temperature:      ac.Temperature,
 		TopP:             ac.TopP,
-		Stream:           ac.Stream,
+		Stream:           ac.Stream(),
 		Stop:             ac.Stop,
 		PresencePenalty:  ac.PresencePenalty,
 		FrequencyPenalty: ac.FrequencyPenalty,
@@ -58,7 +67,6 @@ func (ac Config) clone() Config {
 		MaxTokens:        ac.MaxTokens,
 		Temperature:      ac.Temperature,
 		TopP:             ac.TopP,
-		Stream:           ac.Stream,
 		Stop:             ac.Stop,
 		PresencePenalty:  ac.PresencePenalty,
 		FrequencyPenalty: ac.FrequencyPenalty,
@@ -70,7 +78,7 @@ func (ac Config) clone() Config {
 }
 
 // WithConfig will make the agent use the given config.
-func WithConfig(cfg Config) func(*Config) {
+func WithConfig(cfg Config) Option {
 	return func(ac *Config) {
 		*ac = cfg
 	}
@@ -78,92 +86,70 @@ func WithConfig(cfg Config) func(*Config) {
 
 // WithModel configures the agent to use the given model. The model must be
 // the ID of a completion model.
-func WithModel(model string) func(*Config) {
+func WithModel(model string) Option {
 	return func(ac *Config) {
 		ac.Model = model
 	}
 }
 
-// WithMaxTokens creates a function that sets the MaxTokens field of
-// agentConfig. The returned function can be used as an option to configure the
-// agent.
-func WithMaxTokens(maxTokens int) func(*Config) {
+// WithMaxTokens sets MaxTokens for the agent.
+func WithMaxTokens(maxTokens int) Option {
 	return func(ac *Config) {
 		ac.MaxTokens = maxTokens
 	}
 }
 
-// WithTemperature creates a function that sets the Temperature field of
-// agentConfig. The returned function can be used as an option to configure the
-// agent.
-func WithTemperature(temperature float32) func(*Config) {
+// WithTemperature sets Temperature for the agent.
+func WithTemperature(temperature float32) Option {
 	return func(ac *Config) {
 		ac.Temperature = temperature
 	}
 }
 
-// WithTopP creates a function that sets the TopP field of agentConfig. The
-// returned function can be used as an option to configure the agent.
-func WithTopP(topP float32) func(*Config) {
+// WithTopP sets
+func WithTopP(topP float32) Option {
 	return func(ac *Config) {
 		ac.TopP = topP
 	}
 }
 
-// WithStream creates a function that sets the Stream field of agentConfig. The
-// returned function can be used as an option to configure the agent.
-func WithStream(stream bool) func(*Config) {
-	return func(ac *Config) {
-		ac.Stream = stream
-	}
-}
-
-// WithStop creates a function that sets the Stop field of agentConfig. The
-// returned function can be used as an option to configure the agent.
-func WithStop(stop []string) func(*Config) {
+// WithStop sets Stop for the agent.
+func WithStop(stop []string) Option {
 	return func(ac *Config) {
 		ac.Stop = stop
 	}
 }
 
-// WithPresencePenalty creates a function that sets the PresencePenalty field of
-// agentConfig. The returned function can be used as an option to configure the
-// agent.
-func WithPresencePenalty(presencePenalty float32) func(*Config) {
+// WithPresencePenalty sets
+func WithPresencePenalty(presencePenalty float32) Option {
 	return func(ac *Config) {
 		ac.PresencePenalty = presencePenalty
 	}
 }
 
-// WithFrequencyPenalty creates a function that sets the FrequencyPenalty field
-// of agentConfig. The returned function can be used as an option to configure
-// the agent.
-func WithFrequencyPenalty(frequencyPenalty float32) func(*Config) {
+// WithFrequencyPenalty sets FrequencyPenalty for the agent.
+func WithFrequencyPenalty(frequencyPenalty float32) Option {
 	return func(ac *Config) {
 		ac.FrequencyPenalty = frequencyPenalty
 	}
 }
 
-// WithLogitBias creates a function that sets the LogitBias field of
-// agentConfig. The returned function can be used as an option to configure the
-// agent.
-func WithLogitBias(logitBias map[string]int) func(*Config) {
+// WithLogitBias sets LogitBias for the agent.
+func WithLogitBias(logitBias map[string]int) Option {
 	return func(ac *Config) {
 		ac.LogitBias = logitBias
 	}
 }
 
-// WithUser creates a function that sets the User field of agentConfig. The
-// returned function can be used as an option to configure the agent.
-func WithUser(user string) func(*Config) {
+// WithUser sets User for the agent.
+func WithUser(user string) Option {
 	return func(ac *Config) {
 		ac.User = user
 	}
 }
 
-// WithClient creates a function that sets the Client field of agentConfig. The
-// returned function can be used as an option to configure the agent.
-func WithClient(client Client) func(*Config) {
+// WithClient will make the agent use the given client.
+func WithClient(client Client) Option {
 	return func(ac *Config) {
 		ac.Client = client
 	}
@@ -177,8 +163,17 @@ func (nw nullWriter) Write(p []byte) (n int, err error) {
 
 var _ io.Writer = nullWriter{}
 
-func WithOutput(w io.Writer) func(*Config) {
+// WithStreaming makes the agent to stream its responses to the provided writer.
+// Note that this will cause the agent to use streaming calls to the OpenAI API.
+func WithStreaming(w io.Writer) Option {
 	return func(ac *Config) {
 		ac.Output = w
+	}
+}
+
+// WithoutStreaming suppresses streaming of the agent's responses.
+func WithoutStreaming() Option {
+	return func(ac *Config) {
+		ac.Output = nil
 	}
 }

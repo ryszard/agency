@@ -1,7 +1,6 @@
 package cache
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/boltdb/bolt"
@@ -9,26 +8,12 @@ import (
 
 const bucketName = "cache"
 
-// NotFoundError is returned when a key is not found in the cache.
-type NotFoundError struct {
-	Key []byte
-}
-
-func (e NotFoundError) Error() string {
-	return fmt.Sprintf("key %q not found", e.Key)
-}
-
-// NotFound returns true if the error is a NotFoundError.
-func NotFound(err error) bool {
-	_, ok := err.(NotFoundError)
-	return ok
-}
-
 // BoltDBCache is a BoltDB backed key-value store.
 type BoltDBCache struct {
 	db *bolt.DB
 }
 
+// BoltDB returns a BoltDBCache, which is BoltDB backed key-value store.
 func BoltDB(filepath string) (*BoltDBCache, error) {
 	db, err := bolt.Open(filepath, 0600, &bolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
@@ -58,20 +43,19 @@ func (c *BoltDBCache) Set(key []byte, value []byte) error {
 }
 
 // Get retrieves a key-value pair from the cache.
-func (c *BoltDBCache) Get(key []byte) ([]byte, error) {
-	var value []byte
-	err := c.db.View(func(tx *bolt.Tx) error {
+func (c *BoltDBCache) Get(key []byte) (value []byte, ok bool, err error) {
+
+	err = c.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(bucketName))
 		value = b.Get(key)
-		if value == nil {
-			return NotFoundError{Key: key}
-		}
+		ok = value != nil
+
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return value, nil
+	return value, ok, nil
 }
 
 // Close releases all database resources.
