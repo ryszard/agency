@@ -13,7 +13,7 @@ import (
 
 func TestAgentSystem(t *testing.T) {
 	t.Run("System message is added to the actor's messages", func(t *testing.T) {
-		ag := &Agent{}
+		ag := &BaseAgent{}
 		systemMessage := "Test system message"
 
 		ag.System(systemMessage)
@@ -25,8 +25,8 @@ func TestAgentSystem(t *testing.T) {
 			},
 		}
 
-		if !reflect.DeepEqual(ag.Messages, want) {
-			t.Errorf("got %v, want %v", ag.Messages, want)
+		if !reflect.DeepEqual(ag.Messages(), want) {
+			t.Errorf("got %v, want %v", ag.Messages(), want)
 		}
 	})
 }
@@ -62,13 +62,13 @@ func TestRespond(t *testing.T) {
 	mockCall := mockClient.On("CreateChatCompletion", ctx, mock.Anything).Return(expectedResp, nil)
 
 	ac := New("Test", WithClient(mockClient))
-	ac.Messages = messages
+	ac.messages = messages
 
 	// Test success case
 	respMsg, err := ac.Respond(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, "Response", respMsg)
-	assert.Len(t, ac.Messages, 3)
+	assert.Len(t, ac.Messages(), 3)
 
 	expectedReq := openai.ChatCompletionRequest{
 		Messages: messages,

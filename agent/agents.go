@@ -11,59 +11,123 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type Agent struct {
-	name     string
-	Messages []openai.ChatCompletionMessage
-	Config   Config
+// Agent is an interface for a chat agent. It is the main interface that
+// you will use to interact with the AI. You can create an agent using
+// the New function.
+type Agent interface {
+	// Name returns the name of the agent.
+	Name() string
+	// Listen sends a message to the agent and appends the response to the
+	// agent's messages. An agent may also support passing additional data
+	// to Listen, but this is not required. An Agent may return an error
+	// if you pass data that it does not support.
+	Listen(message string, data ...any) error
+
+	// System sends a system message to the agent and appends the response
+	// to the agent's messages. An agent may also support passing additional
+	// data to System, but this is not required. An Agent may return an error
+	// if you pass data that it does not support.
+	System(message string, data ...any) error
+
+	// Respond gets a response from the agent, basing on the current
+	// conversation. The options passed to Respond will be applied for this
+	// call, but won't affect subsequent calls.
+	Respond(ctx context.Context, options ...Option) (message string, err error)
+
+	// RespondStream gets a response from the agent, basing on the current
+	// conversation. The options passed to Respond will be applied for this
+	// call, but won't affect subsequent calls. The response will be streamed
+	// to the writer, but also returned as a string.
+	RespondStream(ctx context.Context, w io.Writer, options ...Option) (message string, err error)
+
+	// Messages returns all messages that the agent has sent and received.
+	Messages() []openai.ChatCompletionMessage
+
+	// Append appends messages to the agent's messages.
+	Append(messages ...openai.ChatCompletionMessage)
+
+	// Config returns the agent's config.
+	Config() Config
 }
 
-func (ag *Agent) Name() string {
+var _ Agent = &BaseAgent{}
+
+// BaseAgent is a basic implementation of the Agent interface.
+type BaseAgent struct {
+	name     string
+	messages []openai.ChatCompletionMessage
+	config   Config
+}
+
+func (ag *BaseAgent) Config() Config {
+	return ag.config
+}
+
+func (ag *BaseAgent) Messages() []openai.ChatCompletionMessage {
+	return ag.messages
+}
+
+func (ag *BaseAgent) Name() string {
 	return ag.name
 }
 
-func New(name string, options ...Option) *Agent {
-	ag := &Agent{
-		name: name,
+// FromConfig creates a new agent from a config.
+func FromConfig(name string, cfg Config, options ...Option) *BaseAgent {
+	ag := &BaseAgent{
+		name:   name,
+		config: cfg,
 	}
 
 	for _, opt := range options {
-		opt(&ag.Config)
+		opt(&ag.config)
 	}
 
 	return ag
 }
 
-// System sends a System message to the actor.
-func (ag *Agent) System(message string) {
-	ag.Messages = append(ag.Messages, openai.ChatCompletionMessage{
+func New(name string, options ...Option) *BaseAgent {
+	return FromConfig(name, Config{}, options...)
+}
+
+func (ag *BaseAgent) Append(messages ...openai.ChatCompletionMessage) {
+	ag.messages = append(ag.messages, messages...)
+}
+
+func (ag *BaseAgent) System(message string, data ...any) error {
+	if len(data) > 0 {
+		return errors.New("this agent does not support passing data to System")
+	}
+	ag.Append(openai.ChatCompletionMessage{
 		Content: message,
 		Role:    "system",
 	})
+	return nil
 }
 
-// Listen sends a User message to the actor.
-func (ag *Agent) Listen(message string) {
-	ag.Messages = append(ag.Messages, openai.ChatCompletionMessage{
+func (ag *BaseAgent) Listen(message string, data ...any) error {
+	if len(data) > 0 {
+		return errors.New("this agent does not support passing data to Listen")
+	}
+	ag.Append(openai.ChatCompletionMessage{
 		Content: message,
 		Role:    "user",
 	})
+
+	return nil
 }
 
-func (ag *Agent) createRequest(options []Option) (Config, openai.ChatCompletionRequest) {
-	cfg := ag.Config.clone()
+func (ag *BaseAgent) createRequest(options []Option) (Config, openai.ChatCompletionRequest) {
+	cfg := ag.config.clone()
 	for _, opt := range options {
 		opt(&cfg)
 	}
 	req := cfg.chatCompletionRequest()
-	req.Messages = ag.Messages
+	req.Messages = ag.Messages()
 
 	return cfg, req
 }
 
-// Respond gets a response from the actor, basing on the current conversation.
-// The options passed to Respond will be applied for this call, but won't affect
-// subsequent calls.
-func (ag *Agent) Respond(ctx context.Context, options ...Option) (message string, err error) {
+func (ag *BaseAgent) Respond(ctx context.Context, options ...Option) (message string, err error) {
 
 	logger := log.WithField("actor", ag.name)
 
@@ -79,15 +143,12 @@ func (ag *Agent) Respond(ctx context.Context, options ...Option) (message string
 	logger.WithField("response", fmt.Sprintf("%+v", resp)).Info("Received response from OpenAI API")
 
 	msg := resp.Choices[0].Message
-	ag.Messages = append(ag.Messages, msg)
+	ag.Append(msg)
 
 	return msg.Content, nil
 }
 
-// RespondStream gets a response from the actor, basing on the current
-// conversation. It will stream the response to the provided writer and return
-// the whole response as a string.
-func (ag *Agent) RespondStream(ctx context.Context, w io.Writer, options ...Option) (message string, err error) {
+func (ag *BaseAgent) RespondStream(ctx context.Context, w io.Writer, options ...Option) (string, error) {
 	cfg, req := ag.createRequest(options)
 	logger := log.WithField("actor", ag.name)
 
@@ -124,5 +185,12 @@ func (ag *Agent) RespondStream(ctx context.Context, w io.Writer, options ...Opti
 
 	}
 	w.Write([]byte("\n\n"))
+
+	message := openai.ChatCompletionMessage{
+		Content: b.String(),
+		Role:    openai.ChatMessageRoleAssistant,
+	}
+
+	ag.Append(message)
 	return b.String(), nil
 }

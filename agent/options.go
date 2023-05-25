@@ -16,7 +16,7 @@ type Config struct {
 	FrequencyPenalty float32
 	LogitBias        map[string]int
 	User             string
-	Client           Client
+	Client           Client `json:"-"`
 }
 
 func (ac Config) chatCompletionRequest() openai.ChatCompletionRequest {
