@@ -58,5 +58,5 @@ Temporary Items
 *.icloud
 
 # End of https://www.toptal.com/developers/gitignore/api/go,macos
-cmd/poet/log.txt
+log.txt
 cmd/advisor/cache.bolt
