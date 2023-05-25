@@ -38,7 +38,7 @@ type Agent interface {
 	// conversation. The options passed to Respond will be applied for this
 	// call, but won't affect subsequent calls. The response will be streamed
 	// to the writer, but also returned as a string.
-	RespondStream(ctx context.Context, w io.Writer, options ...Option) (message string, err error)
+	RespondStream(ctx context.Context, options ...Option) (message string, err error)
 
 	// Messages returns all messages that the agent has sent and received.
 	Messages() []openai.ChatCompletionMessage
@@ -71,11 +71,9 @@ func (ag *BaseAgent) Name() string {
 	return ag.name
 }
 
-// FromConfig creates a new agent from a config.
-func FromConfig(name string, cfg Config, options ...Option) *BaseAgent {
+func New(name string, options ...Option) *BaseAgent {
 	ag := &BaseAgent{
-		name:   name,
-		config: cfg,
+		name: name,
 	}
 
 	for _, opt := range options {
@@ -83,10 +81,6 @@ func FromConfig(name string, cfg Config, options ...Option) *BaseAgent {
 	}
 
 	return ag
-}
-
-func New(name string, options ...Option) *BaseAgent {
-	return FromConfig(name, Config{}, options...)
 }
 
 func (ag *BaseAgent) Append(messages ...openai.ChatCompletionMessage) {
@@ -105,6 +99,7 @@ func (ag *BaseAgent) System(message string, data ...any) error {
 }
 
 func (ag *BaseAgent) Listen(message string, data ...any) error {
+	log.WithField("message", message).WithField("agent", ag.Name()).Trace("Listen")
 	if len(data) > 0 {
 		return errors.New("this agent does not support passing data to Listen")
 	}
@@ -112,6 +107,7 @@ func (ag *BaseAgent) Listen(message string, data ...any) error {
 		Content: message,
 		Role:    "user",
 	})
+	log.WithField("messages", ag.Messages()).WithField("agent", ag.Name()).Trace("Listen Messages")
 
 	return nil
 }
@@ -148,12 +144,15 @@ func (ag *BaseAgent) Respond(ctx context.Context, options ...Option) (message st
 	return msg.Content, nil
 }
 
-func (ag *BaseAgent) RespondStream(ctx context.Context, w io.Writer, options ...Option) (string, error) {
+func (ag *BaseAgent) RespondStream(ctx context.Context, options ...Option) (string, error) {
 	cfg, req := ag.createRequest(options)
 	logger := log.WithField("actor", ag.name)
 
 	req.Stream = true
-
+	logger.WithFields(log.Fields{
+		"request": fmt.Sprintf("%+v", req),
+		"stream":  true,
+	}).Info("RespondStream: Sending request")
 	stream, err := cfg.Client.CreateChatCompletionStream(ctx, req)
 	if err != nil {
 		return "", err
@@ -161,7 +160,7 @@ func (ag *BaseAgent) RespondStream(ctx context.Context, w io.Writer, options ...
 
 	defer stream.Close()
 
-	if _, err := fmt.Fprintf(w, "%v:\n\n", ag.name); err != nil {
+	if _, err := fmt.Fprintf(cfg.out(), "%v:\n\n", ag.name); err != nil {
 		return "", err
 	}
 
@@ -179,12 +178,12 @@ func (ag *BaseAgent) RespondStream(ctx context.Context, w io.Writer, options ...
 		if _, err := b.WriteString(delta); err != nil {
 			return "", err
 		}
-		if _, err := w.Write([]byte(delta)); err != nil {
+		if _, err := cfg.out().Write([]byte(delta)); err != nil {
 			return "", err
 		}
 
 	}
-	w.Write([]byte("\n\n"))
+	cfg.out().Write([]byte("\n\n"))
 
 	message := openai.ChatCompletionMessage{
 		Content: b.String(),

@@ -17,23 +17,23 @@ func TestHash(t *testing.T) {
 	}
 
 	// Test when messages and config are default
-	hash1, err := ag.hash()
+	hash1, _, err := ag.hash()
 	assert.NoError(t, err)
 
 	// Test when messages are the same, but config is different
 	ag.Append(openai.ChatCompletionMessage{Role: "user", Content: "hello"})
-	hash2, err := ag.hash(WithMaxTokens(10)) // Assuming WithMaxTokens is an Option to change max tokens
+	hash2, _, err := ag.hash(WithMaxTokens(10)) // Assuming WithMaxTokens is an Option to change max tokens
 	assert.NoError(t, err)
 	assert.NotEqual(t, hash1, hash2)
 
 	// Test when messages are the same and config is the same, hash should be the same
-	hash3, err := ag.hash(WithMaxTokens(10))
+	hash3, _, err := ag.hash(WithMaxTokens(10))
 	assert.NoError(t, err)
 	assert.Equal(t, hash2, hash3)
 
 	// Test when messages are different, hash should be different
 	ag.Append(openai.ChatCompletionMessage{Role: "user", Content: "goodbye"})
-	hash4, err := ag.hash(WithMaxTokens(10))
+	hash4, _, err := ag.hash(WithMaxTokens(10))
 	assert.NoError(t, err)
 	assert.NotEqual(t, hash2, hash4)
 	assert.NotEqual(t, hash1, hash4)
@@ -63,7 +63,7 @@ func TestCachedAgent(t *testing.T) {
 	)
 
 	createAgent := func() Agent {
-		ag := WithCache(New("test", WithClient(client)), cache.Memory())
+		ag := Cached(New("test", WithClient(client)), cache.Memory())
 
 		ag.Append(userMessage)
 

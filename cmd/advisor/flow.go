@@ -4,11 +4,10 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
-	"text/template"
 
 	"github.com/ryszard/agency/agent"
 	"github.com/ryszard/agency/util/cache"
+	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 )
 
@@ -17,34 +16,25 @@ type AgentConfig struct {
 	Templates map[string]string `yaml:"templates"`
 }
 
-func (ac *AgentConfig) ParseTemplates() (map[string]*template.Template, error) {
-	templates := make(map[string]*template.Template)
-	for name, text := range ac.Templates {
-		tmpl, err := template.New(name).Parse(text)
-		if err != nil {
-			return nil, err
-		}
-		templates[name] = tmpl
-	}
-	return templates, nil
-}
+func (cfg *AgentConfig) Agent(name string, client agent.Client, out io.Writer, cache *cache.BoltDBCache) (ag agent.Agent, err error) {
 
-func (cfg *AgentConfig) Agent(name string, client agent.Client, out io.Writer, cache *cache.BoltDBCache) (*TemplatedAgent, error) {
-	templates, err := cfg.ParseTemplates()
+	ag = agent.New(name,
+		agent.WithConfig(cfg.Config),
+		agent.WithClient(client),
+		agent.WithOutput(out))
+
+	log.WithField("name", name).WithField("agent", fmt.Sprintf("%+v", ag)).Debug("agent created")
+
+	ag, err = agent.Templated(ag, cfg.Templates)
 	if err != nil {
 		return nil, err
 	}
 
-	var ag agent.Agent = agent.FromConfig(name, cfg.Config, agent.WithClient(client))
-
 	if cache != nil {
-		ag = agent.WithCache(ag, cache)
+		ag = agent.Cached(ag, cache)
 	}
-	return &TemplatedAgent{
-		Agent:     ag,
-		Templates: templates,
-		out:       out,
-	}, nil
+
+	return ag, nil
 
 }
 
@@ -59,8 +49,8 @@ type FlowConfig struct {
 
 type Flow struct {
 	Config             FlowConfig
-	IntentionEvaluator *TemplatedAgent
-	Author             *TemplatedAgent
+	IntentionEvaluator agent.Agent
+	Author             agent.Agent
 }
 
 func Load(path string, client agent.Client, out io.Writer, cach *cache.BoltDBCache) (*Flow, error) {
@@ -95,28 +85,4 @@ func Load(path string, client agent.Client, out io.Writer, cach *cache.BoltDBCac
 
 	return &flow, nil
 
-}
-
-type TemplatedAgent struct {
-	agent.Agent
-	Templates map[string]*template.Template
-	out       io.Writer
-}
-
-func (ta *TemplatedAgent) ListenFromTemplate(templateName string, data any) error {
-	template := ta.Templates[templateName]
-	if template == nil {
-		return fmt.Errorf("template %s not found", templateName)
-	}
-
-	var message strings.Builder
-	if err := template.Execute(&message, data); err != nil {
-		return err
-	}
-
-	ta.Agent.Listen(message.String())
-	fmt.Fprintf(ta.out, "User ➡️ %s\n", ta.Name())
-	ta.out.Write([]byte(message.String()))
-	ta.out.Write([]byte("\n"))
-	return nil
 }

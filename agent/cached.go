@@ -5,23 +5,24 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"io"
 
 	"github.com/sashabaranov/go-openai"
 	log "github.com/sirupsen/logrus"
 )
 
+// Cache is an interface for a cache. It is used to store the responses to
+// the agent's messages.
 type Cache interface {
 	Get(key []byte) ([]byte, error)
 	Set(key []byte, value []byte) error
 }
 
-// WithCache wraps an Agent with a cache. The cache is used to store the
+// Cached wraps an Agent with a cache. The cache is used to store the
 // responses to the agent's messages. If the agent is asked to respond to
 // a message that it has already responded to, it will return the cached
 // response instead of making a new request to the API. This can be useful
 // while developing, as it will save you from using up your API requests.
-func WithCache(ag Agent, cache Cache) Agent {
+func Cached(ag Agent, cache Cache) Agent {
 	return &cachedAgent{
 		Agent: ag,
 		cache: cache,
@@ -33,13 +34,13 @@ type cachedAgent struct {
 	cache Cache
 }
 
-func (ag *cachedAgent) hash(options ...Option) (string, error) {
+func (ag *cachedAgent) hash(options ...Option) (string, Config, error) {
 
 	// convert ag.Messages() to JSON and put it in data
 	messagesJSON, err := json.Marshal(ag.Messages())
 	if err != nil {
 		log.WithError(err).Error("failed to marshal messages")
-		return "", err
+		return "", Config{}, err
 	}
 
 	cfg := ag.Config()
@@ -50,17 +51,17 @@ func (ag *cachedAgent) hash(options ...Option) (string, error) {
 	configJSON, err := json.Marshal(cfg)
 	if err != nil {
 		log.WithError(err).Error("failed to marshal config")
-		return "", err
+		return "", Config{}, err
 	}
 
 	data := append(messagesJSON, configJSON...)
 
 	hash := sha256.Sum256(data)
-	return hex.EncodeToString(hash[:]), nil
+	return hex.EncodeToString(hash[:]), cfg, nil
 }
 
 func (ag *cachedAgent) Respond(ctx context.Context, options ...Option) (message string, err error) {
-	hash, err := ag.hash(options...)
+	hash, _, err := ag.hash(options...)
 	if err != nil {
 		return "", err
 	}
@@ -82,8 +83,8 @@ func (ag *cachedAgent) Respond(ctx context.Context, options ...Option) (message 
 	return message, err
 }
 
-func (ag *cachedAgent) RespondStream(ctx context.Context, w io.Writer, options ...Option) (message string, err error) {
-	hash, err := ag.hash(options...)
+func (ag *cachedAgent) RespondStream(ctx context.Context, options ...Option) (message string, err error) {
+	hash, cfg, err := ag.hash(options...)
 	if err != nil {
 		return "", err
 	}
@@ -92,12 +93,12 @@ func (ag *cachedAgent) RespondStream(ctx context.Context, w io.Writer, options .
 			Content: string(cached),
 			Role:    openai.ChatMessageRoleAssistant,
 		})
-		w.Write([]byte(cached))
-		w.Write([]byte("\n"))
+		cfg.out().Write([]byte(cached))
+		cfg.out().Write([]byte("\n"))
 		return string(cached), nil
 	}
 
-	message, err = ag.Agent.RespondStream(ctx, w, options...)
+	message, err = ag.Agent.RespondStream(ctx, options...)
 	if err != nil {
 		return "", err
 	}

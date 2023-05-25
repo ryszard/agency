@@ -53,6 +53,7 @@ func Retrying(client Client, baseWait time.Duration, maxWait time.Duration, maxR
 }
 
 func (client *retryingClient) CreateChatCompletion(ctx context.Context, req openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error) {
+	log.WithField("req", req).Info("CreateChatCompletion")
 	resp, err := retry(client, func() (any, error) {
 		return client.client.CreateChatCompletion(ctx, req)
 	})
@@ -63,6 +64,7 @@ func (client *retryingClient) CreateChatCompletion(ctx context.Context, req open
 }
 
 func (client *retryingClient) CreateChatCompletionStream(ctx context.Context, req openai.ChatCompletionRequest) (*openai.ChatCompletionStream, error) {
+	log.WithField("req", req).Info("CreateChatCompletionStream")
 	resp, err := retry(client, func() (any, error) {
 		return client.client.CreateChatCompletionStream(ctx, req)
 	})

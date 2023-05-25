@@ -1,11 +1,16 @@
 package agent
 
-import "github.com/sashabaranov/go-openai"
+import (
+	"io"
+
+	"github.com/sashabaranov/go-openai"
+)
 
 // Option is a function that configures the agent.
 type Option func(*Config)
 
 type Config struct {
+	// openai.ChatCompletionRequest fields
 	Model            string
 	MaxTokens        int
 	Temperature      float32
@@ -16,7 +21,20 @@ type Config struct {
 	FrequencyPenalty float32
 	LogitBias        map[string]int
 	User             string
-	Client           Client `json:"-"`
+
+	// other fields
+	Client Client `json:"-"`
+
+	// Output is the writer to which the agent will write its output. If nil,
+	// the agent's output will be discarded. This is useful for streaming.
+	Output io.Writer `json:"-"`
+}
+
+func (ac Config) out() io.Writer {
+	if ac.Output != nil {
+		return ac.Output
+	}
+	return nullWriter{}
 }
 
 func (ac Config) chatCompletionRequest() openai.ChatCompletionRequest {
@@ -47,11 +65,19 @@ func (ac Config) clone() Config {
 		LogitBias:        ac.LogitBias,
 		User:             ac.User,
 		Client:           ac.Client,
+		Output:           ac.Output,
 	}
 }
 
-// WithModel creates a function that sets the model field of agentConfig. The
-// returned function can be used as an option to configure the agent.
+// WithConfig will make the agent use the given config.
+func WithConfig(cfg Config) func(*Config) {
+	return func(ac *Config) {
+		*ac = cfg
+	}
+}
+
+// WithModel configures the agent to use the given model. The model must be
+// the ID of a completion model.
 func WithModel(model string) func(*Config) {
 	return func(ac *Config) {
 		ac.Model = model
@@ -140,5 +166,19 @@ func WithUser(user string) func(*Config) {
 func WithClient(client Client) func(*Config) {
 	return func(ac *Config) {
 		ac.Client = client
+	}
+}
+
+type nullWriter struct{}
+
+func (nw nullWriter) Write(p []byte) (n int, err error) {
+	return len(p), nil
+}
+
+var _ io.Writer = nullWriter{}
+
+func WithOutput(w io.Writer) func(*Config) {
+	return func(ac *Config) {
+		ac.Output = w
 	}
 }

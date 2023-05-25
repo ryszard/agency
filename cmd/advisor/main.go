@@ -18,7 +18,8 @@ var (
 	messagePath = flag.String("message", "", "message from the user")
 	logLevel    = flag.String("log_level", "debug", "log level")
 
-	cachePath = flag.String("cache", "", "path to cache file")
+	cachePath              = flag.String("cache", "", "path to cache file")
+	includeCallingLocation = flag.Bool("include_calling_location", false, "include calling location in log messages")
 )
 
 func main() {
@@ -30,6 +31,11 @@ func main() {
 	}
 
 	log.SetLevel(level)
+
+	if *includeCallingLocation {
+		log.SetReportCaller(true)
+	}
+
 	log.Info("Starting advisor")
 
 	client := agent.Retrying(openai.NewClient(os.Getenv("OPENAI_API_KEY")), time.Second, 60*time.Second, 5)
@@ -54,35 +60,41 @@ func main() {
 
 	message := string(messageBytes)
 
-	flow.IntentionEvaluator.ListenFromTemplate("emotional_state", message)
+	flow.IntentionEvaluator.Listen("emotional_state", message)
 
-	emotionalState, err := flow.IntentionEvaluator.RespondStream(context.Background(), os.Stdout)
+	emotionalState, err := flow.IntentionEvaluator.RespondStream(context.Background())
 	if err != nil {
 		log.WithError(err).Fatal("can't respond")
 	}
 
-	flow.IntentionEvaluator.ListenFromTemplate("desired_response", nil)
-	desiredResponse, err := flow.IntentionEvaluator.RespondStream(context.Background(), os.Stdout)
+	flow.IntentionEvaluator.Listen("desired_response", nil)
+	desiredResponse, err := flow.IntentionEvaluator.RespondStream(context.Background())
 	if err != nil {
 		log.WithError(err).Fatal("can't respond")
 	}
 
-	flow.IntentionEvaluator.ListenFromTemplate("criteria", desiredResponse)
-	criteria, err := flow.IntentionEvaluator.RespondStream(context.Background(), os.Stdout)
+	flow.IntentionEvaluator.Listen("criteria", desiredResponse)
+	criteria, err := flow.IntentionEvaluator.RespondStream(context.Background())
 	if err != nil {
 		log.WithError(err).Fatal("can't respond")
 	}
 
 	fmt.Fprintf(os.Stdout, "IntentionEvaluator:\n\nEmotional State: %s\n\nDesired Response: %s\n\nCriteria: %s\n\n", emotionalState, desiredResponse, criteria)
+	log.SetLevel(log.TraceLevel)
+	log.WithField("author messages", flow.Author.Messages()).Debug("author messages before Listen")
 
-	flow.Author.ListenFromTemplate("reply", struct {
+	if err := flow.Author.Listen("reply", struct {
 		EmotionalState  string
 		DesiredResponse string
 		Criteria        string
 		Message         string
-	}{emotionalState, desiredResponse, criteria, message})
+	}{emotionalState, desiredResponse, criteria, message}); err != nil {
+		log.WithError(err).Fatal("can't listen")
+	}
 
-	reply, err := flow.Author.RespondStream(context.Background(), os.Stdout)
+	log.WithField("author messages", flow.Author.Messages()).Debug("author messages after Listen")
+
+	reply, err := flow.Author.RespondStream(context.Background())
 	if err != nil {
 		log.WithError(err).Fatal("can't respond")
 	}
