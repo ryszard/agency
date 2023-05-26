@@ -95,6 +95,70 @@ func tokenCount(cfg Config, message openai.ChatCompletionMessage) (int, error) {
 	return len(ids), nil
 }
 
+func partitionByTokenLimit(cfg Config, messages []openai.ChatCompletionMessage, maxTokens int) ([]openai.ChatCompletionMessage, []openai.ChatCompletionMessage, error) {
+	// get the number of tokens in each messages
+	tokens := make([]int, len(messages))
+	for i, message := range messages {
+		count, err := tokenCount(cfg, message)
+		if err != nil {
+			return nil, nil, err
+		}
+		tokens[i] = count
+	}
+
+	// count the number of tokens in the system messages
+	systemTokens := 0
+	for i, message := range messages {
+		if message.Role == "system" {
+			systemTokens += tokens[i]
+		}
+	}
+
+	if systemTokens > maxTokens {
+		return nil, nil, fmt.Errorf("system messages are too long (%d tokens), MaxTokens * fillRatio is %d", systemTokens, cfg.MaxTokens)
+	}
+
+	nonSystemTokens := maxTokens - systemTokens
+
+	// if the last message is non-system, and it's too long, return an error
+	if messages[len(messages)-1].Role != "system" && tokens[len(messages)-1] > nonSystemTokens {
+		return nil, nil, fmt.Errorf("last message and system messages are too long (%d tokens), MaxTokens * fillRatio is %d", tokens[len(messages)-1]+systemTokens, maxTokens)
+	}
+
+	// initialize the new messages slice
+	newMessages := make([]openai.ChatCompletionMessage, 0, len(messages))
+	droppedMessages := make([]openai.ChatCompletionMessage, 0)
+
+	// iterate over messages from the end.
+	for i := len(messages) - 1; i >= 0; i-- {
+		message := messages[i]
+		tokenCount := tokens[i]
+		if message.Role == "system" {
+			newMessages = append(newMessages, message)
+		} else if nonSystemTokens >= tokenCount {
+			newMessages = append(newMessages, message)
+			nonSystemTokens -= tokenCount
+		} else {
+			log.WithField("message", message).Debug("Dropping user message")
+			droppedMessages = append(droppedMessages, message)
+		}
+	}
+
+	// reverse the new messages slice
+	for i := len(newMessages)/2 - 1; i >= 0; i-- {
+		opp := len(newMessages) - 1 - i
+		newMessages[i], newMessages[opp] = newMessages[opp], newMessages[i]
+	}
+
+	// reverse the dropped messages slice
+	for i := len(droppedMessages)/2 - 1; i >= 0; i-- {
+		opp := len(droppedMessages) - 1 - i
+		droppedMessages[i], droppedMessages[opp] = droppedMessages[opp], droppedMessages[i]
+	}
+
+	return newMessages, droppedMessages, nil
+}
+
 // TokenBufferMemory will keep messages that contain at most MaxTokens *
 // fillRatio tokens (taken form the config). It will keep all the system
 // messages, and the last message. If this is impossible, it will return an
@@ -105,64 +169,15 @@ func TokenBufferMemory(fillRatio float64) Memory {
 	}
 
 	return func(cfg Config, messages []openai.ChatCompletionMessage) ([]openai.ChatCompletionMessage, error) {
-
 		maxTokens := int(float64(cfg.MaxTokens) * fillRatio)
-		// get the number of tokens in each messages
-		tokens := make([]int, len(messages))
-		for i, message := range messages {
-			count, err := tokenCount(cfg, message)
-			if err != nil {
-				return nil, err
-			}
-			tokens[i] = count
+
+		newMessages, droppedMessages, err := partitionByTokenLimit(cfg, messages, maxTokens)
+
+		if err != nil {
+			return nil, err
 		}
 
-		// count the number of tokens in the system messages
-		systemTokens := 0
-		for i, message := range messages {
-			if message.Role == "system" {
-				systemTokens += tokens[i]
-			}
-		}
-
-		if systemTokens > maxTokens {
-			return nil, fmt.Errorf("system messages are too long (%d tokens), MaxTokens * fillRatio is %d", systemTokens, cfg.MaxTokens)
-		}
-
-		nonSystemTokens := maxTokens - systemTokens
-
-		// if the last message is non-system, and it's too long, return an error
-		if messages[len(messages)-1].Role != "system" && tokens[len(messages)-1] > nonSystemTokens {
-			return nil, fmt.Errorf("last message and system messages are too long (%d tokens), MaxTokens * fillRatio is %d", tokens[len(messages)-1]+systemTokens, maxTokens)
-		}
-
-		// initialize the new messages slice
-		newMessages := make([]openai.ChatCompletionMessage, 0, len(messages))
-
-		// iterate over messages from the end. We know that we will fit all the
-		// system messages, so we can just add them to the new messages slice.
-		// If you encounter a non-system message, add it to the new messages
-		// slice, and decrease nonSystemTokens by the number of tokens in the
-		// message. If nonSystemTokens is 0, drop any user messages.
-		for i := len(messages) - 1; i >= 0; i-- {
-			message := messages[i]
-			tokenCount := tokens[i]
-			if message.Role == "system" {
-				newMessages = append(newMessages, message)
-			} else if nonSystemTokens >= tokenCount {
-				newMessages = append(newMessages, message)
-				nonSystemTokens -= tokenCount
-			} else {
-				log.WithField("message", message).Debug("Dropping user message")
-			}
-
-		}
-
-		// reverse the new messages slice
-		for i := len(newMessages)/2 - 1; i >= 0; i-- {
-			opp := len(newMessages) - 1 - i
-			newMessages[i], newMessages[opp] = newMessages[opp], newMessages[i]
-		}
+		log.WithField("messages", droppedMessages).Debug("Dropped messages: ", droppedMessages)
 
 		return newMessages, nil
 
