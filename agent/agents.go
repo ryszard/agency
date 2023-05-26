@@ -131,6 +131,14 @@ func (ag *BaseAgent) Respond(ctx context.Context, options ...Option) (message st
 
 	cfg, req := ag.createRequest(options)
 
+	if cfg.Memory != nil {
+		newMessages, err := cfg.Memory(cfg, ag.messages)
+		if err != nil {
+			return "", err
+		}
+		ag.messages = newMessages
+	}
+
 	if cfg.Stream() {
 		return ag.respondStream(ctx, options...)
 	}
@@ -165,10 +173,6 @@ func (ag *BaseAgent) respondStream(ctx context.Context, options ...Option) (stri
 	}
 
 	defer stream.Close()
-
-	if _, err := fmt.Fprintf(cfg.out(), "%v:\n\n", ag.name); err != nil {
-		return "", err
-	}
 
 	var b strings.Builder
 

@@ -11,8 +11,10 @@ require (
 require (
 	github.com/boltdb/bolt v1.3.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/dlclark/regexp2 v1.9.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/stretchr/objx v0.5.0 // indirect
+	github.com/tiktoken-go/tokenizer v0.1.0 // indirect
 	golang.org/x/sys v0.8.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

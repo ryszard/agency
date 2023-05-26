@@ -30,6 +30,9 @@ type Config struct {
 	// Output is the writer to which the agent will write its output. If nil,
 	// the agent's output will be discarded. This is useful for streaming.
 	Output io.Writer `json:"-"`
+
+	// Memory is the agent's memory.
+	Memory Memory `json:"-"`
 }
 
 // Stream returns true if the agent is configured to stream its output.
@@ -175,5 +178,12 @@ func WithStreaming(w io.Writer) Option {
 func WithoutStreaming() Option {
 	return func(ac *Config) {
 		ac.Output = nil
+	}
+}
+
+// WithMemory sets the agent's memory.
+func WithMemory(memory Memory) Option {
+	return func(ac *Config) {
+		ac.Memory = memory
 	}
 }
