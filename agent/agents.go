@@ -18,10 +18,13 @@ type Agent interface {
 	// Name returns the name of the agent.
 	Name() string
 	// Listen sends a message to the agent and appends the response to the
-	// agent's messages. An agent may also support passing additional data
-	// to Listen, but this is not required. An Agent may return an error
-	// if you pass data that it does not support.
-	Listen(message string, data ...any) error
+	// agent's messages. An agent may also support passing additional data to
+	// Listen, but this is not required. An Agent may return an error if you
+	// pass data that it does not support. Listen will return the message that
+	// was passed to the agent. This will be identical to the message that you
+	// passed to Listen in the most basic case, but may be different if the
+	// agent modifies the message.
+	Listen(message string, data ...any) (string, error)
 
 	// System sends a system message to the agent and appends the response
 	// to the agent's messages. An agent may also support passing additional
@@ -100,10 +103,10 @@ func (ag *BaseAgent) System(message string, data ...any) error {
 	return nil
 }
 
-func (ag *BaseAgent) Listen(message string, data ...any) error {
+func (ag *BaseAgent) Listen(message string, data ...any) (string, error) {
 	log.WithField("message", message).WithField("agent", ag.Name()).Trace("Listen")
 	if len(data) > 0 {
-		return errors.New("this agent does not support passing data to Listen")
+		return "", errors.New("this agent does not support passing data to Listen")
 	}
 	ag.Append(openai.ChatCompletionMessage{
 		Content: message,
@@ -111,7 +114,7 @@ func (ag *BaseAgent) Listen(message string, data ...any) error {
 	})
 	log.WithField("messages", ag.Messages()).WithField("agent", ag.Name()).Trace("Listen Messages")
 
-	return nil
+	return message, nil
 }
 
 func (ag *BaseAgent) createRequest(options []Option) (Config, openai.ChatCompletionRequest) {

@@ -83,14 +83,16 @@ func main() {
 	log.SetLevel(log.TraceLevel)
 	log.WithField("author messages", flow.Author.Messages()).Debug("author messages before Listen")
 
-	if err := flow.Author.Listen("reply", struct {
+	actualMessage, err := flow.Author.Listen("reply", struct {
 		EmotionalState  string
 		DesiredResponse string
 		Criteria        string
 		Message         string
-	}{emotionalState, desiredResponse, criteria, message}); err != nil {
+	}{emotionalState, desiredResponse, criteria, message})
+	if err != nil {
 		log.WithError(err).Fatal("can't listen")
 	}
+	fmt.Printf("%s:\n\n%s\n\n", flow.Author.Name(), actualMessage)
 
 	log.WithField("author messages", flow.Author.Messages()).Debug("author messages after Listen")
 

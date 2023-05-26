@@ -40,28 +40,30 @@ var _ Agent = &TemplatedAgent{}
 // Listen implements the Agent interface. Instead of sending the message
 // directly to the wrapped agent, it first formats it using the template with
 // the given name and the given data. The data is passed to the template's
-// Execute method.
-func (ag *TemplatedAgent) Listen(templateName string, data ...any) error {
+// Execute method. The message that was sent to the wrapped agent is returned.
+func (ag *TemplatedAgent) Listen(templateName string, data ...any) (string, error) {
 	if len(data) > 1 {
-		return fmt.Errorf("templated agent only supports one data argument")
+		return "", fmt.Errorf("templated agent only supports one data argument")
 	}
 	datum := data[0]
 	template := ag.Templates[templateName]
 	if template == nil {
-		return fmt.Errorf("template %s not found", templateName)
+		return "", fmt.Errorf("template %s not found", templateName)
 	}
 
 	var message strings.Builder
 	if err := template.Execute(&message, datum); err != nil {
-		return err
+		return "", err
 	}
 
-	ag.Agent.Listen(message.String())
+	if _, err := ag.Agent.Listen(message.String()); err != nil {
+		return "", err
+	}
 	log.WithField("templated agent messages", ag.Messages()).Debug("agent messages")
 
 	out := ag.Config().out()
 	fmt.Fprintf(out, "User ➡️ %s\n", ag.Name())
 	out.Write([]byte(message.String()))
 	out.Write([]byte("\n"))
-	return nil
+	return message.String(), nil
 }
