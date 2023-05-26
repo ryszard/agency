@@ -61,9 +61,5 @@ func (ag *TemplatedAgent) Listen(templateName string, data ...any) (string, erro
 	}
 	log.WithField("templated agent messages", ag.Messages()).Debug("agent messages")
 
-	out := ag.Config().out()
-	fmt.Fprintf(out, "User ➡️ %s\n", ag.Name())
-	out.Write([]byte(message.String()))
-	out.Write([]byte("\n"))
 	return message.String(), nil
 }

@@ -40,15 +40,6 @@ func (cfg Config) Stream() bool {
 	return cfg.Output != nil
 }
 
-// TODO(ryszard): Remove out.
-
-func (ac Config) out() io.Writer {
-	if ac.Output != nil {
-		return ac.Output
-	}
-	return nullWriter{}
-}
-
 func (ac Config) chatCompletionRequest() openai.ChatCompletionRequest {
 	return openai.ChatCompletionRequest{
 		Model:            ac.Model,

@@ -191,12 +191,12 @@ func (ag *BaseAgent) respondStream(ctx context.Context, options ...Option) (stri
 		if _, err := b.WriteString(delta); err != nil {
 			return "", err
 		}
-		if _, err := cfg.out().Write([]byte(delta)); err != nil {
+		if _, err := cfg.Output.Write([]byte(delta)); err != nil {
 			return "", err
 		}
 
 	}
-	cfg.out().Write([]byte("\n\n"))
+	cfg.Output.Write([]byte("\n\n"))
 
 	message := openai.ChatCompletionMessage{
 		Content: b.String(),
