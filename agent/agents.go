@@ -186,7 +186,7 @@ func (ag *BaseAgent) respondStream(ctx context.Context, options ...Option) (stri
 		} else if err != nil {
 			return "", err
 		}
-		logger.WithField("stream response", fmt.Sprintf("%+v", r)).Trace("Received response from OpenAI API")
+		//logger.WithField("stream response", fmt.Sprintf("%+v", r)).Trace("Received response from OpenAI API")
 		delta := r.Choices[0].Delta.Content
 		if _, err := b.WriteString(delta); err != nil {
 			return "", err

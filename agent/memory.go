@@ -1,8 +1,12 @@
 package agent
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
+	"text/template"
 
 	"github.com/sashabaranov/go-openai"
 	log "github.com/sirupsen/logrus"
@@ -80,6 +84,8 @@ func BufferMemory(n int) Memory {
 	}
 }
 
+type tokenCounter func(cfg Config, message openai.ChatCompletionMessage) (int, error)
+
 // tokenCount returns the number of tokens in a message.
 func tokenCount(cfg Config, message openai.ChatCompletionMessage) (int, error) {
 	codec, err := tokenizer.ForModel(tokenizer.Model(cfg.Model))
@@ -95,16 +101,24 @@ func tokenCount(cfg Config, message openai.ChatCompletionMessage) (int, error) {
 	return len(ids), nil
 }
 
-func partitionByTokenLimit(cfg Config, messages []openai.ChatCompletionMessage, maxTokens int) ([]openai.ChatCompletionMessage, []openai.ChatCompletionMessage, error) {
+func partitionByTokenLimit(
+	cfg Config,
+	messages []openai.ChatCompletionMessage,
+	maxTokens int,
+	tokenCount tokenCounter,
+) ([]openai.ChatCompletionMessage, []openai.ChatCompletionMessage, error) {
 	// get the number of tokens in each messages
 	tokens := make([]int, len(messages))
+	total := 0
 	for i, message := range messages {
 		count, err := tokenCount(cfg, message)
 		if err != nil {
 			return nil, nil, err
 		}
 		tokens[i] = count
+		total += count
 	}
+	log.WithField("total", total).Debug("Token count")
 
 	// count the number of tokens in the system messages
 	systemTokens := 0
@@ -115,7 +129,7 @@ func partitionByTokenLimit(cfg Config, messages []openai.ChatCompletionMessage, 
 	}
 
 	if systemTokens > maxTokens {
-		return nil, nil, fmt.Errorf("system messages are too long (%d tokens), MaxTokens * fillRatio is %d", systemTokens, cfg.MaxTokens)
+		return nil, nil, fmt.Errorf("system messages are too long (%d tokens), MaxTokens * fillRatio is %d", systemTokens, maxTokens)
 	}
 
 	nonSystemTokens := maxTokens - systemTokens
@@ -129,17 +143,42 @@ func partitionByTokenLimit(cfg Config, messages []openai.ChatCompletionMessage, 
 	newMessages := make([]openai.ChatCompletionMessage, 0, len(messages))
 	droppedMessages := make([]openai.ChatCompletionMessage, 0)
 
+	startedDropping := false
+
 	// iterate over messages from the end.
 	for i := len(messages) - 1; i >= 0; i-- {
+		log.WithField("message", messages[i]).Trace("Checking message")
+
 		message := messages[i]
 		tokenCount := tokens[i]
-		if message.Role == "system" {
+
+		if message.Role == openai.ChatMessageRoleSystem {
+			log.WithField("message", messages[i]).
+				WithField("nonSystemTokens", nonSystemTokens).
+				WithField("tokenCount", tokenCount).
+				WithField("startedDropping", startedDropping).
+				Trace("Retaining (System)")
+
+			// Never drop a system message
 			newMessages = append(newMessages, message)
-		} else if nonSystemTokens >= tokenCount {
+		} else if !startedDropping && nonSystemTokens >= tokenCount {
+			log.WithField("message", messages[i]).
+				WithField("nonSystemTokens", nonSystemTokens).
+				WithField("tokenCount", tokenCount).
+				WithField("startedDropping", startedDropping).
+				Trace("Retaining")
+
 			newMessages = append(newMessages, message)
 			nonSystemTokens -= tokenCount
+
 		} else {
-			log.WithField("message", message).Debug("Dropping user message")
+			log.
+				WithField("message", message).
+				WithField("nonSystemTokens", nonSystemTokens).
+				WithField("tokenCount", tokenCount).
+				WithField("startedDropping", startedDropping).
+				Trace("Dropping")
+			startedDropping = true
 			droppedMessages = append(droppedMessages, message)
 		}
 	}
@@ -171,8 +210,7 @@ func TokenBufferMemory(fillRatio float64) Memory {
 	return func(cfg Config, messages []openai.ChatCompletionMessage) ([]openai.ChatCompletionMessage, error) {
 		maxTokens := int(float64(cfg.MaxTokens) * fillRatio)
 
-		newMessages, droppedMessages, err := partitionByTokenLimit(cfg, messages, maxTokens)
-
+		newMessages, droppedMessages, err := partitionByTokenLimit(cfg, messages, maxTokens, tokenCount)
 		if err != nil {
 			return nil, err
 		}
@@ -182,4 +220,160 @@ func TokenBufferMemory(fillRatio float64) Memory {
 		return newMessages, nil
 
 	}
+}
+
+type SummarizerTemplateValues struct {
+	Messages        []openai.ChatCompletionMessage
+	PreviousSummary string
+}
+
+var summaryMessageTemplate = template.Must(template.New("summaryMessage").Parse(`
+You are the assistant. Part of this conversation has been truncated. Here is the summary of the conversation so far:
+
+SUMMARY:
+"{{js .}}"
+END SUMMARY
+`))
+
+// parseSummary looks for the string "SUMMARY:" in the provided message, takes
+// all the lines after it up to "END SUMMARY", parses them as a JSON string, and
+// returns the resulting object. If there's no summary, return the empty string.
+func parseSummary(message string) (string, error) {
+	// find the start of the summary
+	start := strings.Index(message, "SUMMARY:")
+	if start == -1 {
+		return "", nil
+	}
+
+	// find the end of the summary
+	end := strings.Index(message, "END SUMMARY")
+	if end == -1 {
+		return "", fmt.Errorf("no END SUMMARY found")
+	}
+
+	// get the summary string
+	summary := message[start+len("SUMMARY:") : end]
+
+	// decode the summary from JSON
+	var summaryObj string
+	err := json.Unmarshal([]byte(summary), &summaryObj)
+	if err != nil {
+		log.WithError(err).WithField("summary", summary).Error("Error parsing summary")
+		return "", err
+	}
+
+	return summaryObj, nil
+}
+
+// Summarizer memory is a memory implementation that when the number of tokens
+// approaches MaxTokens * fillRatio, it will summarize the messages that it is
+// dropping. It will never drop system messages.
+func SummarizerMemoryWithTemplate(fillRatio float64, tmpl *template.Template, options ...Option) Memory {
+	if fillRatio <= 0 || fillRatio > 1 {
+		panic("fillRatio must be in the range (0, 1]")
+	}
+
+	return func(cfg Config, messages []openai.ChatCompletionMessage) ([]openai.ChatCompletionMessage, error) {
+		maxTokens := int(float64(cfg.MaxTokens) * fillRatio)
+
+		retainedMessages, droppedMessages, err := partitionByTokenLimit(cfg, messages, maxTokens, tokenCount)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(droppedMessages) == 0 {
+			log.Debug("No messages dropped")
+			return messages, nil
+		}
+
+		log.WithField("messages", droppedMessages).Trace("Dropped messages")
+		log.WithField("messages", retainedMessages).Trace("Retained messages")
+
+		summarizerOptions := []Option{
+			WithConfig(cfg),
+		}
+		summarizerOptions = append(summarizerOptions, options...)
+		summarizerOptions = append(summarizerOptions, []Option{WithMemory(nil), WithoutStreaming()}...)
+
+		// FIXME: allow the caller to override this.
+		summarizerOptions = append(summarizerOptions, WithMaxTokens(1000))
+
+		// Find if there is a previous summary. If there is, it's going to be in
+		// the first message in retainedMessages, which is going to be a system message.
+		var previousSummary string
+		firstMessage := retainedMessages[0]
+		if firstMessage.Role == openai.ChatMessageRoleSystem {
+			previousSummary, err = parseSummary(firstMessage.Content)
+			if err != nil {
+				return nil, err
+			}
+			// drop the first message, we'll write a better one
+			retainedMessages = retainedMessages[1:]
+		}
+
+		summarizer := New("summarizer", summarizerOptions...)
+
+		sb := strings.Builder{}
+
+		if err := tmpl.Execute(&sb, SummarizerTemplateValues{
+			Messages:        droppedMessages,
+			PreviousSummary: previousSummary,
+		}); err != nil {
+			return nil, err
+		}
+
+		_, err = summarizer.Listen(sb.String())
+		if err != nil {
+			return nil, err
+		}
+
+		// FIXME(ryszard): pass the context from outside.
+
+		summary, err := summarizer.Respond(context.TODO())
+		if err != nil {
+			return nil, err
+		}
+
+		wr := &strings.Builder{}
+		if err := summaryMessageTemplate.Execute(wr, summary); err != nil {
+			return nil, err
+		}
+
+		log.WithField("messages", droppedMessages).Debug("Dropped messages.")
+		log.WithField("summary", wr.String()).Debug("Summary message.")
+
+		newMessages := make([]openai.ChatCompletionMessage, 0, len(retainedMessages)+1)
+		newMessages = append(newMessages, openai.ChatCompletionMessage{
+			Role:    openai.ChatMessageRoleSystem,
+			Content: wr.String(),
+		})
+
+		newMessages = append(newMessages, retainedMessages...)
+
+		return newMessages, nil
+
+	}
+}
+
+const summarizerTemplate = `
+As the assistant, your role is to maintain an ongoing, concise summary of the entire conversation so far. This includes incorporating key actions, requests, and responses from both the previous summary and new conversation lines. 
+
+Remember to highlight significant user actions, especially any change in user's requests, instructions, or themes. These changes are as important as the content of the conversation.
+
+Here's the information you'll need to update the summary:
+
+PREVIOUS SUMMARY: "{{js .PreviousSummary}}"
+END PREVIOUS SUMMARY
+
+NEW LINES:
+{{range .Messages}}
+{{.Role}}: "{{js .Content}}"
+{{end}}
+END NEW LINES
+
+You're not just adding to the previous summary, but integrating the new information into it, particularly noting any changes or additions to the user's requests or instructions. Your aim is to create a concise, evolving record of the conversation that tracks user's requests and the assistant's responses, while incorporating all relevant information.
+`
+
+func SummarizerMemory(fillRatio float64, options ...Option) Memory {
+	return SummarizerMemoryWithTemplate(fillRatio, template.Must(template.New("summarizer").Parse(summarizerTemplate)), options...)
 }

@@ -68,6 +68,7 @@ func (ac Config) clone() Config {
 		User:             ac.User,
 		Client:           ac.Client,
 		Output:           ac.Output,
+		Memory:           ac.Memory,
 	}
 }
 
