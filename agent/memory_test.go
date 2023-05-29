@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"testing"
 
 	openai "github.com/sashabaranov/go-openai"
@@ -18,7 +19,7 @@ func TestBufferMemoryOverflow(t *testing.T) {
 	memory := BufferMemory(2)
 	cfg := Config{}
 
-	if _, err := memory(cfg, messages); err == nil {
+	if _, err := memory(context.TODO(), cfg, messages); err == nil {
 		t.Error("Expected error, got nil")
 	}
 }
@@ -33,7 +34,7 @@ func TestBufferMemoryExactFit(t *testing.T) {
 	memory := BufferMemory(2)
 	cfg := Config{}
 
-	bufferedMessages, err := memory(cfg, messages)
+	bufferedMessages, err := memory(context.TODO(), cfg, messages)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -67,7 +68,7 @@ func TestBufferMemoryRandomOrder(t *testing.T) {
 	memory := BufferMemory(4)
 	cfg := Config{}
 
-	bufferedMessages, err := memory(cfg, messages)
+	bufferedMessages, err := memory(context.TODO(), cfg, messages)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -187,7 +188,7 @@ func TestTokenBufferMemory(t *testing.T) {
 
 	cfg.MaxTokens = allTokens - droppedTokens + 1
 
-	bufferedMessages, err := memory(cfg, messages)
+	bufferedMessages, err := memory(context.TODO(), cfg, messages)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}

@@ -135,7 +135,7 @@ func (ag *BaseAgent) Respond(ctx context.Context, options ...Option) (message st
 	cfg, req := ag.createRequest(options)
 
 	if cfg.Memory != nil {
-		newMessages, err := cfg.Memory(cfg, ag.messages)
+		newMessages, err := cfg.Memory(ctx, cfg, ag.messages)
 		if err != nil {
 			return "", err
 		}
