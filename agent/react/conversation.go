@@ -5,94 +5,92 @@ import (
 	"strings"
 )
 
-// StepType represents the type of step in the conversation.
-type StepType string
+// Tag represents the type of step in the conversation.
+type Tag string
 
-const (
-	ThoughtStep     StepType = "Thought"
-	ActionStep      StepType = "Action"
-	ObservationStep StepType = "Observation"
-	QuestionStep    StepType = "Question"
-	AssumptionStep  StepType = "Assumption"
-	AnswerStep      StepType = "Answer"
-	FinalAnswerStep StepType = "Final Answer"
-	Unrecognized    StepType = ""
-)
-
-func (s StepType) Prefix() string {
-	return fmt.Sprintf("%s: ", s)
+var Tags = struct {
+	Thought      Tag
+	Action       Tag
+	Observation  Tag
+	Question     Tag
+	Assumption   Tag
+	Answer       Tag
+	FinalAnswer  Tag
+	Unrecognized Tag
+}{
+	Thought:      "Thought",
+	Action:       "Action",
+	Observation:  "Observation",
+	Question:     "Question",
+	Assumption:   "Assumption",
+	Answer:       "Answer",
+	FinalAnswer:  "Final Answer",
+	Unrecognized: "",
 }
 
-func (s StepType) IsRecognized() bool {
-	return s != Unrecognized
+func (et Tag) Prefix() string {
+	return fmt.Sprintf("%s: ", et)
 }
 
-func matchStep(line string) StepType {
+func (et Tag) IsRecognized() bool {
+	return et != Tags.Unrecognized
+}
+
+func matchTag(line string) Tag {
 	switch {
-	case strings.HasPrefix(line, ThoughtStep.Prefix()):
-		return ThoughtStep
-	case strings.HasPrefix(line, ActionStep.Prefix()):
-		return ActionStep
-	case strings.HasPrefix(line, AssumptionStep.Prefix()):
-		return AssumptionStep
-	case strings.HasPrefix(line, ObservationStep.Prefix()):
-		return ObservationStep
-	case strings.HasPrefix(line, QuestionStep.Prefix()):
-		return QuestionStep
-	case strings.HasPrefix(line, AnswerStep.Prefix()):
-		return AnswerStep
-	case strings.HasPrefix(line, FinalAnswerStep.Prefix()):
-		return FinalAnswerStep
+	case strings.HasPrefix(line, Tags.Thought.Prefix()):
+		return Tags.Thought
+	case strings.HasPrefix(line, Tags.Action.Prefix()):
+		return Tags.Action
+	case strings.HasPrefix(line, Tags.Assumption.Prefix()):
+		return Tags.Assumption
+	case strings.HasPrefix(line, Tags.Observation.Prefix()):
+		return Tags.Observation
+	case strings.HasPrefix(line, Tags.Question.Prefix()):
+		return Tags.Question
+	case strings.HasPrefix(line, Tags.Answer.Prefix()):
+		return Tags.Answer
+	case strings.HasPrefix(line, Tags.FinalAnswer.Prefix()):
+		return Tags.FinalAnswer
 	default:
-		return Unrecognized
+		return Tags.Unrecognized
 	}
 }
 
-// Step represents an individual step in the conversation or process log, which includes
+// Entry represents an individual step in the conversation or process log, which includes
 // a thought, action, action input, observation or final answer.
-type Step struct {
-	Type     StepType
+type Entry struct {
+	Tag      Tag
 	Content  string
 	Argument string
 }
 
-func (s Step) String() string {
-	if s.Type == ActionStep {
-		return fmt.Sprintf("%s: %s\n%s", s.Type, s.Argument, s.Content)
+func (entry Entry) String() string {
+	if entry.Tag == Tags.Action {
+		return fmt.Sprintf("%s: %s\n%s", entry.Tag, entry.Argument, entry.Content)
 	}
-	return fmt.Sprintf("%s: %s", s.Type, s.Content)
-}
-
-// Conversation represents a sequence of conversation steps
-type Conversation struct {
-	Question string
-	Steps    []Step
-}
-
-// NewConversation returns an empty conversation for a given question
-func NewConversation(question string) *Conversation {
-	return &Conversation{Question: question}
+	return fmt.Sprintf("%s: %s", entry.Tag, entry.Content)
 }
 
 // Parse parses a conversation from a string.
-func Parse(text string) (steps []Step, err error) {
+func Parse(text string) (steps []Entry, err error) {
 	// Split the text into lines
 	lines := strings.Split(text, "\n")
 
-	currentStep := Step{}
+	currentStep := Entry{}
 
 	for _, line := range lines {
-		stepType := matchStep(line)
+		stepType := matchTag(line)
 
 		if stepType.IsRecognized() {
 			// We found the beginning of a new step.
-			if currentStep.Type.IsRecognized() {
+			if currentStep.Tag.IsRecognized() {
 				// There was a previous step in progress, so we should finalize
 				// it and add it to the list of steps.
 				steps = append(steps, currentStep)
 			}
-			currentStep = Step{Type: stepType}
-			if stepType != ActionStep {
+			currentStep = Entry{Tag: stepType}
+			if stepType != Tags.Action {
 				currentStep.Content = strings.TrimSpace(strings.TrimPrefix(line, stepType.Prefix()))
 			} else {
 				// Split the line into the step type and the argument the first
@@ -104,7 +102,7 @@ func Parse(text string) (steps []Step, err error) {
 				currentStep.Argument = strings.TrimSpace(arg)
 			}
 
-		} else if currentStep.Type.IsRecognized() {
+		} else if currentStep.Tag.IsRecognized() {
 			// We are in the middle of a step; add the line to its content.
 			currentStep.Content += "\n" + line
 		} else {
@@ -125,10 +123,4 @@ func Parse(text string) (steps []Step, err error) {
 	}
 
 	return steps, nil
-}
-
-// FinalAnswer is a method on Conversation that returns the final answer from the conversation steps
-func (c *Conversation) FinalAnswer() (string, error) {
-	// implementation goes here
-	return "", nil
 }

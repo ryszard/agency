@@ -29,8 +29,11 @@ type Agent interface {
 	// System sends a system message to the agent and appends the response
 	// to the agent's messages. An agent may also support passing additional
 	// data to System, but this is not required. An Agent may return an error
-	// if you pass data that it does not support.
-	System(message string, data ...any) error
+	// if you pass data that it does not support. System will return the
+	// message that was passed to the agent. This will be identical to the
+	// message that you passed to System in the most basic case, but may be
+	// different if the agent modifies the message.
+	System(message string, data ...any) (string, error)
 
 	// Respond gets a response from the agent, basing on the current
 	// conversation. The options passed to Respond will be applied for this
@@ -92,15 +95,15 @@ func (ag *BaseAgent) Append(messages ...openai.ChatCompletionMessage) {
 	ag.messages = append(ag.messages, messages...)
 }
 
-func (ag *BaseAgent) System(message string, data ...any) error {
+func (ag *BaseAgent) System(message string, data ...any) (string, error) {
 	if len(data) > 0 {
-		return errors.New("this agent does not support passing data to System")
+		return "", errors.New("this agent does not support passing data to System")
 	}
 	ag.Append(openai.ChatCompletionMessage{
 		Content: message,
 		Role:    "system",
 	})
-	return nil
+	return message, nil
 }
 
 func (ag *BaseAgent) Listen(message string, data ...any) (string, error) {

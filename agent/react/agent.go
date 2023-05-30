@@ -8,19 +8,20 @@ import (
 	"os"
 
 	"github.com/ryszard/agency/agent"
-	"github.com/ryszard/agency/util/python"
+	"github.com/ryszard/agency/tools/bash"
+	"github.com/ryszard/agency/tools/python"
 	log "github.com/sirupsen/logrus"
 )
 
 //go:embed react_prompt.md
-var systemPrompt string
+var SystemPrompt string
 
 func Work(ctx context.Context, client agent.Client, pythonPath string, cache agent.Cache, question string, options ...agent.Option) error {
 	ag := agent.New("pythonista", options...)
 
 	ag = agent.Cached(ag, cache)
 
-	err := ag.System(systemPrompt)
+	_, err := ag.System(SystemPrompt)
 	if err != nil {
 		return err
 	}
@@ -32,9 +33,13 @@ func Work(ctx context.Context, client agent.Client, pythonPath string, cache age
 
 	defer python.Close()
 
-	steps := []Step{}
+	// FIXME(ryszard): Pass this from the outside.
+	bash := bash.New("/bin/bash")
+	defer bash.Close()
 
-	_, err = ag.Listen(fmt.Sprintf("Question: %s", question))
+	steps := []Entry{}
+
+	_, err = ag.System(fmt.Sprintf("Question: %s", question))
 	if err != nil {
 		return err
 	}
@@ -53,16 +58,38 @@ func Work(ctx context.Context, client agent.Client, pythonPath string, cache age
 		}
 		log.WithField("newSteps", fmt.Sprintf("%+v", newSteps)).Info("parsed message")
 		//steps = append(steps, newSteps...)
-		for _, step := range newSteps {
+		actionNotLast := false
+		observationsOutput := false
+		for i, step := range newSteps {
 			fmt.Printf("%s\n", step)
+			if step.Tag == Tags.Action && i != len(newSteps)-1 {
+				actionNotLast = true
+			} else if step.Tag == Tags.Observation {
+				observationsOutput = true
+			}
+		}
+
+		if actionNotLast || observationsOutput {
+			var scolding string
+			if actionNotLast {
+				scolding = "Please provide an Action as the last step!"
+			}
+			if observationsOutput {
+				scolding += "You are not allowed to provide your own observations!"
+			}
+			_, err := ag.Listen(scolding)
+			if err != nil {
+				return err
+			}
+			continue
 		}
 
 		steps = append(steps, newSteps...)
 		lastStep := steps[len(steps)-1]
 
-		if lastStep.Type == FinalAnswerStep {
+		if lastStep.Tag == Tags.FinalAnswer {
 			return nil
-		} else if lastStep.Type != ActionStep {
+		} else if lastStep.Tag != Tags.Action {
 			_, err := ag.Listen("Please continue.")
 			if err != nil {
 				return err
@@ -72,12 +99,12 @@ func Work(ctx context.Context, client agent.Client, pythonPath string, cache age
 		var observation string
 		switch lastStep.Argument {
 		case "python":
-			stdout, stderr, err := python.Execute(lastStep.Content)
+			resp, err := python.Execute(lastStep.Content)
 			if err != nil {
 				return err
 			}
-			fmt.Printf("stdout: %s\nstderr: %s\n", stdout, stderr)
-			observation = fmt.Sprintf("Observation: \nStandard Output: %s\nStandardError:\n%s\n", stdout, stderr)
+			fmt.Printf("stdout: %s\nstderr: %s\n", resp.Out, resp.Err)
+			observation = fmt.Sprintf("Observation: \nStandard Output: %s\nStandardError:\n%s\n", resp.Out, resp.Err)
 
 		case "human":
 			// Print the question
@@ -90,6 +117,12 @@ func Work(ctx context.Context, client agent.Client, pythonPath string, cache age
 				return err
 			}
 			observation = fmt.Sprintf("Observation: Answer from human: %s\n", answer)
+
+		case "bash":
+			fmt.Printf("Running bash command: %s\n", lastStep.Content)
+
+			resp, err := bash.Execute(lastStep.Content)
+			observation = fmt.Sprintf("Observation: \nStandard Output:\n%s\nStandardError:\n%s\n\nExecution Error: %#v", resp.Out, resp.Err, err)
 
 		}
 
