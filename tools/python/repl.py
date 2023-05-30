@@ -5,7 +5,7 @@ import logging
 from io import StringIO
 
 # Set up logging
-logging.basicConfig(filename='repl.log', level=logging.DEBUG)
+#logging.basicConfig(filename='repl.log', level=logging.DEBUG)
 
 # Create a dictionary to act as the global namespace
 globals_dict = {}
