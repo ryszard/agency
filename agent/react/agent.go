@@ -1,68 +1,87 @@
 package react
 
 import (
-	"bufio"
 	"context"
 	_ "embed"
 	"fmt"
+	"io"
 	"os"
+	"strings"
+	"text/template"
 
 	"github.com/ryszard/agency/agent"
-	"github.com/ryszard/agency/tools/bash"
-	"github.com/ryszard/agency/tools/python"
 	log "github.com/sirupsen/logrus"
 )
 
-//go:embed react_prompt.md
-var SystemPrompt string
+//go:embed templates/react_prompt.md
+var SystemPromptTemplate string
 
-func Work(ctx context.Context, client agent.Client, pythonPath string, cache agent.Cache, question string, options ...agent.Option) error {
-	ag := agent.New("pythonista", options...)
+// ReAct is a reactive agent.
+type ReAct struct {
+	agent          agent.Agent
+	box            *toolbox
+	systemTemplate *template.Template
+	initialized    bool
+	writer         io.Writer
+}
 
-	ag = agent.Cached(ag, cache)
+// New creates a new ReAct agent with the default system prompt and writing to
+// os.Stdout.
+func New(ag agent.Agent, tools ...Tool) *ReAct {
+	tpl := template.Must(template.New("system_prompt").Parse(SystemPromptTemplate))
+	return NewReAct(ag, os.Stdout, tpl, tools...)
+}
 
-	_, err := ag.System(SystemPrompt)
-	if err != nil {
-		return err
+// NewWithTemplate creates a new reactive agent with a custom system prompt. The
+// provided template must use the same data as the default template. The writer will be used to
+// write the conversation.
+func NewReAct(ag agent.Agent, w io.Writer, tpl *template.Template, tools ...Tool) *ReAct {
+	return &ReAct{
+		agent:          ag,
+		box:            newToolbox(tools...),
+		systemTemplate: tpl,
+		writer:         w,
 	}
+}
 
-	python, err := python.New(pythonPath)
-	if err != nil {
-		return err
+func (reactor *ReAct) Answer(ctx context.Context, question string, options ...agent.Option) error {
+
+	if !reactor.initialized {
+		var sb strings.Builder
+		if err := reactor.systemTemplate.Execute(&sb, reactor.box); err != nil {
+			return err
+		}
+
+		_, err := reactor.agent.System(sb.String())
+		if err != nil {
+			return err
+		}
 	}
+	entries := []Entry{}
 
-	defer python.Close()
-
-	// FIXME(ryszard): Pass this from the outside.
-	bash := bash.New("/bin/bash")
-	defer bash.Close()
-
-	steps := []Entry{}
-
-	_, err = ag.System(fmt.Sprintf("Question: %s", question))
+	_, err := reactor.agent.System(fmt.Sprintf("Question: %s", question))
 	if err != nil {
 		return err
 	}
 
 	for {
-		msg, err := ag.Respond(context.Background())
+		msg, err := reactor.agent.Respond(context.Background(), options...)
 		if err != nil {
 			return err
 		}
 
 		log.WithField("msg", msg).Info("received message")
 
-		newSteps, err := Parse(msg)
+		newEntries, err := Parse(msg)
 		if err != nil {
 			return err
 		}
-		log.WithField("newSteps", fmt.Sprintf("%+v", newSteps)).Info("parsed message")
-		//steps = append(steps, newSteps...)
+		log.WithField("newEntries", fmt.Sprintf("%+v", newEntries)).Info("parsed message")
 		actionNotLast := false
 		observationsOutput := false
-		for i, step := range newSteps {
+		for i, step := range newEntries {
 			fmt.Printf("%s\n", step)
-			if step.Tag == Tags.Action && i != len(newSteps)-1 {
+			if step.Tag == Tags.Action && i != len(newEntries)-1 {
 				actionNotLast = true
 			} else if step.Tag == Tags.Observation {
 				observationsOutput = true
@@ -72,66 +91,41 @@ func Work(ctx context.Context, client agent.Client, pythonPath string, cache age
 		if actionNotLast || observationsOutput {
 			var scolding string
 			if actionNotLast {
-				scolding = "Please provide an Action as the last step!"
+				scolding = "Please provide an Action as the last entry!"
 			}
 			if observationsOutput {
-				scolding += "You are not allowed to provide your own observations!"
+				scolding += " You are not allowed to provide your own observations!"
 			}
-			_, err := ag.Listen(scolding)
+			_, err := reactor.agent.Listen(scolding)
 			if err != nil {
 				return err
 			}
 			continue
 		}
 
-		steps = append(steps, newSteps...)
-		lastStep := steps[len(steps)-1]
+		entries = append(entries, newEntries...)
+		lastEntry := entries[len(entries)-1]
 
-		if lastStep.Tag == Tags.FinalAnswer {
+		if lastEntry.Tag == Tags.FinalAnswer {
 			return nil
-		} else if lastStep.Tag != Tags.Action {
-			_, err := ag.Listen("Please continue.")
+		} else if lastEntry.Tag != Tags.Action {
+			_, err := reactor.agent.Listen("Please continue.")
 			if err != nil {
 				return err
 			}
 			continue
 		}
-		var observation string
-		switch lastStep.Argument {
-		case "python":
-			resp, err := python.Execute(lastStep.Content)
-			if err != nil {
-				return err
-			}
-			fmt.Printf("stdout: %s\nstderr: %s\n", resp.Out, resp.Err)
-			observation = fmt.Sprintf("Observation: \nStandard Output: %s\nStandardError:\n%s\n", resp.Out, resp.Err)
 
-		case "human":
-			// Print the question
-			fmt.Printf("Question to Human: %s\n", question)
-			// Read the answer from standard input
-			reader := bufio.NewReader(os.Stdin)
-			fmt.Print("Answer: ")
-			answer, err := reader.ReadString('\n')
-			if err != nil {
-				return err
-			}
-			observation = fmt.Sprintf("Observation: Answer from human: %s\n", answer)
-
-		case "bash":
-			fmt.Printf("Running bash command: %s\n", lastStep.Content)
-
-			resp, err := bash.Execute(lastStep.Content)
-			observation = fmt.Sprintf("Observation: \nStandard Output:\n%s\nStandardError:\n%s\n\nExecution Error: %#v", resp.Out, resp.Err, err)
-
+		observation, err := reactor.box.Work(ctx, lastEntry.Argument, lastEntry.Content)
+		if err != nil {
+			return err
 		}
 
-		if _, err := ag.Listen(observation); err != nil {
+		if _, err := reactor.agent.Listen(observation); err != nil {
 			return err
 		}
 
 		fmt.Println("\n" + observation + "\n")
 
 	}
-	return nil
 }

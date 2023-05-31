@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// Tag represents the type of step in the conversation.
+// Tag represents the type of an entry in the conversation.
 type Tag string
 
 var Tags = struct {
@@ -73,54 +73,54 @@ func (entry Entry) String() string {
 }
 
 // Parse parses a conversation from a string.
-func Parse(text string) (steps []Entry, err error) {
+func Parse(text string) (entries []Entry, err error) {
 	// Split the text into lines
 	lines := strings.Split(text, "\n")
 
-	currentStep := Entry{}
+	currentEntry := Entry{}
 
 	for _, line := range lines {
-		stepType := matchTag(line)
+		tag := matchTag(line)
 
-		if stepType.IsRecognized() {
+		if tag.IsRecognized() {
 			// We found the beginning of a new step.
-			if currentStep.Tag.IsRecognized() {
-				// There was a previous step in progress, so we should finalize
-				// it and add it to the list of steps.
-				steps = append(steps, currentStep)
+			if currentEntry.Tag.IsRecognized() {
+				// There was a previous entry in progress, so we should finalize
+				// it and add it to the list of entries.
+				entries = append(entries, currentEntry)
 			}
-			currentStep = Entry{Tag: stepType}
-			if stepType != Tags.Action {
-				currentStep.Content = strings.TrimSpace(strings.TrimPrefix(line, stepType.Prefix()))
+			currentEntry = Entry{Tag: tag}
+			if tag != Tags.Action {
+				currentEntry.Content = strings.TrimSpace(strings.TrimPrefix(line, tag.Prefix()))
 			} else {
-				// Split the line into the step type and the argument the first
-				// value returned by strings.Cut is going to be the step type.
-				// `found` is always going to be true, as otherwise the step
-				// type would have been Unrecognized
+				// Split the line into the entry type and the argument the first
+				// value returned by strings.Cut is going to be the entry tag.
+				// `found` is always going to be true, as otherwise the entry
+				// tag would have been Unrecognized
 				_, arg, _ := strings.Cut(line, ": ")
 
-				currentStep.Argument = strings.TrimSpace(arg)
+				currentEntry.Argument = strings.TrimSpace(arg)
 			}
 
-		} else if currentStep.Tag.IsRecognized() {
-			// We are in the middle of a step; add the line to its content.
-			currentStep.Content += "\n" + line
+		} else if currentEntry.Tag.IsRecognized() {
+			// We are in the middle of a entry; add the line to its content.
+			currentEntry.Content += "\n" + line
 		} else {
-			// No new step, and no step in progress. Unless this is a blank
+			// No new entry, and no entry in progress. Unless this is a blank
 			// we should return an error.
 			if strings.TrimSpace(line) != "" {
-				return nil, fmt.Errorf("unrecognized step: %q", line)
+				return nil, fmt.Errorf("unrecognized tag: %q", line)
 			}
 		}
 	}
 
-	steps = append(steps, currentStep)
+	entries = append(entries, currentEntry)
 
-	for i, step := range steps {
+	for i, entry := range entries {
 
-		steps[i].Content = strings.TrimSpace(step.Content)
+		entries[i].Content = strings.TrimSpace(entry.Content)
 
 	}
 
-	return steps, nil
+	return entries, nil
 }

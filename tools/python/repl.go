@@ -2,13 +2,52 @@ package python
 
 import (
 	"bufio"
+	"context"
 	_ "embed"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os/exec"
 
 	log "github.com/sirupsen/logrus"
 )
+
+// BashTool is a tool that allows the agent to run bash commands. Obviously,
+// this is very dangerous, use it at your own risk.
+type Tool struct {
+	*PythonREPL
+}
+
+func (Tool) Name() string {
+	return "python"
+}
+
+func (Tool) Description() string {
+	return "A Python process you can use to run Python code. Usage limites: use it as much as you want."
+}
+
+func (Tool) Input() string {
+	return "Python code"
+}
+
+func (b Tool) Work(_ context.Context, _, content string) (observation string, err error) {
+	resp, err := b.Execute(content)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("stdout:\n\n%q\nstderr:\n\n%q", resp.Out, resp.Err), nil
+}
+
+// New returns a tool that allows the agent to run Python code.
+func New(path string) (Tool, error) {
+	repl, err := NewREPL(path)
+	if err != nil {
+		return Tool{}, err
+	}
+	return Tool{
+		PythonREPL: repl,
+	}, nil
+}
 
 //go:embed repl.py
 var pythonScript string
@@ -37,8 +76,8 @@ type PythonREPL struct {
 	stdout io.ReadCloser
 }
 
-// New creates a new Python REPL.
-func New(command string) (*PythonREPL, error) {
+// NewREPL creates a new Python REPL.
+func NewREPL(command string) (*PythonREPL, error) {
 	cmd := exec.Command(command, "-c", pythonScript)
 	stdin, _ := cmd.StdinPipe()
 	stdout, _ := cmd.StdoutPipe()
