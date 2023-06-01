@@ -2,15 +2,21 @@
 
 ## 🎯 Overview
 
-Agency is a Go package designed to provide an idiomatic interface to the OpenAI API. The package aims to simplify the creation and management of Language Learning Model (LLM)-based agents, making it easier for you to work with multiple agents and manage their data flow. It hopes to enable easier implementation of autonomous agent systems, inspired by systems like BabyAGI, to solve a variety of tasks.
+Agency is a Go package designed to provide an idiomatic interface to the OpenAI API. The package aims to simplify the creation and management of Language Learning Model (LLM)-based agents, making it easier for you to work with multiple agents and manage their data flow. It hopes to enable easier implementation of autonomous agent systems, similar to AutoGPT or BabyAGI, to solve a variety of tasks.
 
 It also provides some features one may need to deploy the code into production, like caching, retrying, or rate limiting.
 
-At the heart of Agency is the `agent.Agent` type. This interface's three crucial methods are Listen (to communicate text to the AI), System (to send a system message), and Respond (to receive responses from the agent).
+The heart and soul of Agency is the `agent.Agent` type. Its interface features three core methods that allow for convenient communication with AI agents: 
+
+- `Listen`: communicates text to the AI.
+- `System`: sends a system message.
+- `Respond`: receives responses from the agent.
+
+Below is a simple usage example:
 
 ```go
 client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
-agent := agent.New("poet", agent.WithClient(client), agent.WithModel("gpt-4"))
+ag := agent.New("poet", agent.WithClient(client), agent.WithModel("gpt-4"))
 _, err = ag.Listen("Please write a limerick about a Common Lisp programmer from Reno")
 if err != nil {
     panic(err)
@@ -20,7 +26,53 @@ if err != nil {
     panic(err)
 }
 fmt.Println(limerick)
+As you can see, Agent behavior can be fine-tuned via Options, as exemplified by agent.WithModel. Options can also be passed to Agent.Respond to modify a specific request's behavior:
+
+```go
+ag.Respond(context.Background(), agent.WithStreaming(os.Stdout))
 ```
+
+### 🧠Managing Agent Memory
+LLMs have a token limitation within their context window. Agency addresses this by providing the option to give an agent a memory, using the agent.WithMemory option:
+
+```go
+ag := agent.New("Funes", agent.WithClient(client), agent.WithMemory(agent.TokenBufferMemory(0.9))
+```
+
+Agency offers several memory implementations (`agent.BufferMemory`, `agent.TokenBufferMemory`, and `agent.SummarizerMemory`). If these don't fit your needs, you can implement your own by adhering to the agent.Memory interface, which is simply a function that takes in a context, configuration, and list of openai.ChatCompletionMessage, and returns a modified list of messages.
+
+### 🚀Optimizing Performance and Reliability
+
+In order be more robust and efficient, Agency incorporates features such as retry mechanisms with exponential backoff, rate limiting, and caching. Caching especially beneficial when you need to modify prompts frequently during development and wish to avoid excessive latency or redundant API calls.
+
+```go
+var client agent.Client = openai.NewClient(os.Getenv("OPENAI_API_KEY"))
+
+// If you fail, wait 1 second on the first retry, 2 seconds on the second, 
+// and so on, until your reach either 20 retries or 5 minutes.
+client = agent.Retrying(client, 1 * time.Second, 5 * time.Minute, 20)
+
+// golang.org/x/time/rate is a great rate limiting library.
+limiter := rate.NewLimiter(10, 1)
+
+client = agent.RateLimiting(client, limiter)
+
+ag := agent.New("hardened")
+
+// github.com/ryszard/utils/cache provides an in-memory and a BoldDB-based cache.
+cach := cache.Memory()
+ag = agent.Cached(ag, cach)
+```
+
+### 🔍Delving Deeper
+To fully appreciate the potential of Agency, consider exploring [Agency's implementation of the ReAct framework]((https://github.com/ryszard/agency/blob/main/agent/react/agent.go)). Agency is designed to facilitate the construction of such complex agent interactions.
+
+# 🗺️ Roadmap
+
+ - Agency currently only supports OpenAI's API. Add support for other LLMs, like Anthropic's Claude or completion models from Hugging Face.
+ - More memory implementations, especially ones using vector databases like Faiss.
+
+
 
 # ❓Frequently Asked Questions
 
@@ -147,7 +199,7 @@ In this example, the poet writes a haiku about a given topic, and the critic pro
 Please note that this package is still in the early stages of development and is not production-ready. Use it at your own risk, and feel free to contribute to its development.
 
 ## 🤝Contributing
-I welcome contributions! Please see CONTRIBUTING.md for details on how to contribute.
+I welcome contributions! Please send me a pull request.
 
 ## 📄License
 This project is licensed under the terms of the MIT license. See LICENSE for details.
