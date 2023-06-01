@@ -6,7 +6,7 @@ Agency is a Go package designed to provide an idiomatic interface to the OpenAI 
 
 It also provides some features one may need to deploy the code into production, like caching, retrying, or rate limiting.
 
-The central type of agency is the agent.Agent. This is an interface whose 3 most important methods are Listen (to send some text to the AI), System (to send a system message), and Respond (to hear back from the agent).
+At the heart of Agency is the `agent.Agent` type. This interface's three crucial methods are Listen (to communicate text to the AI), System (to send a system message), and Respond (to receive responses from the agent).
 
 ```go
 client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
