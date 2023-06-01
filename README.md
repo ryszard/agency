@@ -26,6 +26,8 @@ if err != nil {
     panic(err)
 }
 fmt.Println(limerick)
+```
+
 As you can see, Agent behavior can be fine-tuned via Options, as exemplified by agent.WithModel. Options can also be passed to Agent.Respond to modify a specific request's behavior:
 
 ```go
