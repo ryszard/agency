@@ -1,4 +1,4 @@
-# 🏢🤖Agency - An Idiomatic Go Interface for OpenAI API🚀
+# 🏢🤖Agency - An Idiomatic Go Interface for the OpenAI API🚀
 
 ## 🎯 Overview
 
@@ -34,7 +34,7 @@ Despite Python being the default choice for AI work, it is not without its issue
 ## 🏗️How production-ready is Agency?
 Currently, Agency is in its early development stage and not quite ready for production use. The APIs may undergo changes without prior notification. However, due to interest from some of my friends, I decided to make this a public repository for anyone keen on exploring its potential.
 
-## Installation
+## 🔧Installation
 Install Agency with the following command:
 
 ```bash
