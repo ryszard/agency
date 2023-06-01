@@ -50,7 +50,7 @@ The GoDoc documentation should provide you with sufficient information to get st
 
 Remember to always keep your `OPENAI_API_KEY` secure and to adhere to the OpenAI use case policy when using the OpenAI API. *This line was ChatGPT's idea. I decided to humor it.*
 
-## Usage
+## 👨‍💻Usage
 Here's a full working example of how you can use Agency to create two agents, a poet and a critic, that interact with each other to create better content.
 
 ```go
