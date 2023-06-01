@@ -1,3 +1,5 @@
+// Package bash implements a tool that allows the ReAct agent defined in
+// agent/react/agent.go to run bash commands.
 package bash
 
 import (

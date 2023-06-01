@@ -6,7 +6,7 @@ import (
 	"sort"
 )
 
-// Tool is a interface encapsulating a tool that can be used by the agent.
+// Tool is an interface encapsulating a tool that can be used by the agent.
 type Tool interface {
 	// Name returns the name of the tool.
 	Name() string

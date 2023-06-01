@@ -1,3 +1,11 @@
+// Package react provides a framework for creating and managing reactive agents,
+// inspired by the paper "Reactive Agents: A Conversational AI Approach".
+//
+// The core of the package is the ReAct struct, which encapsulates a reactive
+// agent. Agents can be created with default or custom system prompts and can
+// answer questions in a context-aware manner.
+//
+// See github.com/ryszard/agency/cmd/react/ for an example of ReAct in use.
 package react
 
 import (
@@ -44,6 +52,7 @@ func NewReAct(ag agent.Agent, w io.Writer, tpl *template.Template, tools ...Tool
 	}
 }
 
+// Answer ask the agent a question and returns the answer.
 func (reactor *ReAct) Answer(ctx context.Context, question string, options ...agent.Option) error {
 
 	if !reactor.initialized {

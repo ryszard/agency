@@ -1,3 +1,5 @@
+// Package python provides a tool that allows ReAct agent from
+// github.com/ryszard/agency/agent/react to run Python code in a repl.
 package python
 
 import (
@@ -12,8 +14,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// BashTool is a tool that allows the agent to run bash commands. Obviously,
-// this is very dangerous, use it at your own risk.
+// Tool allows the agent to run Python code in a repl. Obviously, this is very
+// dangerous, use it at your own risk.
 type Tool struct {
 	*PythonREPL
 }
