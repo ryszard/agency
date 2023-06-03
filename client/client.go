@@ -2,12 +2,7 @@ package client
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"io"
-
-	log "github.com/sirupsen/logrus"
 )
 
 type Role string
@@ -43,20 +38,6 @@ type ChatCompletionRequest struct {
 	// appears. The API will still return the response as a whole.
 	Stream io.Writer `json:"-"` // This should not be used when hashing.
 }
-
-func (r ChatCompletionRequest) hash() ([]byte, error) {
-	data, err := json.Marshal(r)
-	if err != nil {
-		log.WithError(err).Error("hash: failed to marshal messages")
-		return nil, err
-	}
-
-	hash := sha256.Sum256(data)
-	return []byte(hex.EncodeToString(hash[:])), nil
-
-}
-
-type ChatCompletionStream chan []string
 
 // Client is an interface for the OpenAI API client. It's main purpose is to
 // make testing easier.

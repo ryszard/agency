@@ -2,6 +2,8 @@ package client
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 
@@ -29,11 +31,22 @@ func Cached(client Client, cache Cache) *CachedClient {
 		cache:  cache,
 	}
 }
+func hash(r any) ([]byte, error) {
+	data, err := json.Marshal(r)
+	if err != nil {
+		log.WithError(err).Error("hash: failed to marshal messages")
+		return nil, err
+	}
+
+	hash := sha256.Sum256(data)
+	return []byte(hex.EncodeToString(hash[:])), nil
+
+}
 
 // CreateChatCompletion implements Client
 func (c *CachedClient) CreateChatCompletion(ctx context.Context, req ChatCompletionRequest) (ChatCompletionResponse, error) {
 	log.SetLevel(log.DebugLevel)
-	hash, err := req.hash()
+	hash, err := hash(req)
 	log.WithField("hash", fmt.Sprintf("%x", hash)).Debug("hashing request")
 	if err != nil {
 		return ChatCompletionResponse{}, err
