@@ -63,10 +63,6 @@ type ConversationalResponse struct {
 	GeneratedText string `json:"generated_text,omitempty"`
 }
 
-func (cl *Client) CreateChatCompletionStream(ctx context.Context, request client.ChatCompletionStreamRequest) (client.ChatCompletionStream, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-
 func (cl *Client) CreateChatCompletion(ctx context.Context, request client.ChatCompletionRequest) (client.ChatCompletionResponse, error) {
 	payload := ConversationalRequest{
 		Model:              "microsoft/DialoGPT-large",

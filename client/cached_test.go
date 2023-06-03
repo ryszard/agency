@@ -40,11 +40,6 @@ func (m *mockClient) CreateChatCompletion(ctx context.Context, req ChatCompletio
 	return ChatCompletionResponse{}, nil
 }
 
-func (m *mockClient) CreateChatCompletionStream(ctx context.Context, req ChatCompletionStreamRequest) (ChatCompletionStream, error) {
-	m.called = true
-	return nil, nil
-}
-
 func TestCachedClient(t *testing.T) {
 	mockC := &mockClient{}
 	mockCache := &mockCache{cache: cache.Memory()}

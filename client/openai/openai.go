@@ -51,10 +51,6 @@ func (cl *Client) CreateChatCompletion(ctx context.Context, request client.ChatC
 	return TranslateResponse(resp), nil
 }
 
-func (cl *Client) CreateChatCompletionStream(ctx context.Context, request client.ChatCompletionStreamRequest) (client.ChatCompletionStream, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-
 var roleMapping = map[client.Role]string{
 	client.User:      openai.ChatMessageRoleUser,
 	client.System:    openai.ChatMessageRoleSystem,

@@ -61,14 +61,3 @@ func (client *retryingClient) CreateChatCompletion(ctx context.Context, req Chat
 	}
 	return resp.(ChatCompletionResponse), nil
 }
-
-func (client *retryingClient) CreateChatCompletionStream(ctx context.Context, req ChatCompletionStreamRequest) (ChatCompletionStream, error) {
-	log.WithField("req", req).Info("CreateChatCompletionStream")
-	resp, err := retry(client, func() (any, error) {
-		return client.client.CreateChatCompletionStream(ctx, req)
-	})
-	if err != nil {
-		return nil, err
-	}
-	return resp.(ChatCompletionStream), nil
-}

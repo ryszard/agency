@@ -40,11 +40,6 @@ func (m *MockClient) CreateChatCompletion(ctx context.Context, req client.ChatCo
 	return args.Get(0).(client.ChatCompletionResponse), args.Error(1)
 }
 
-func (m *MockClient) CreateChatCompletionStream(ctx context.Context, req client.ChatCompletionStreamRequest) (client.ChatCompletionStream, error) {
-	args := m.Called(ctx, req)
-	return args.Get(0).(client.ChatCompletionStream), args.Error(1)
-}
-
 func TestRespond(t *testing.T) {
 	ctx := context.Background()
 	messages := []client.Message{

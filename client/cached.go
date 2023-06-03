@@ -71,9 +71,4 @@ func (c *CachedClient) CreateChatCompletion(ctx context.Context, req ChatComplet
 
 }
 
-// CreateChatCompletionStream implements Client
-func (*CachedClient) CreateChatCompletionStream(ctx context.Context, req ChatCompletionStreamRequest) (ChatCompletionStream, error) {
-	return nil, nil
-}
-
 var _ Client = (*CachedClient)(nil)

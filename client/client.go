@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"io"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -37,6 +38,10 @@ type ChatCompletionRequest struct {
 	// is the client's responsibility to ensure that the parameters are valid
 	// for the model.
 	CustomParams map[string]interface{} `json:"params"`
+
+	// Stream is a writer to which the API should write the response as it
+	// appears. The API will still return the response as a whole.
+	Stream io.Writer `json:"-"` // This should not be used when hashing.
 }
 
 func (r ChatCompletionRequest) hash() ([]byte, error) {
@@ -51,17 +56,12 @@ func (r ChatCompletionRequest) hash() ([]byte, error) {
 
 }
 
-// FIXME(ryszard): Implement hashing for the streaming request.
-type ChatCompletionStreamRequest interface{}
-
 type ChatCompletionStream chan []string
 
 // Client is an interface for the OpenAI API client. It's main purpose is to
 // make testing easier.
 type Client interface {
 	CreateChatCompletion(ctx context.Context, req ChatCompletionRequest) (ChatCompletionResponse, error)
-	CreateChatCompletionStream(ctx context.Context, req ChatCompletionStreamRequest) (ChatCompletionStream, error)
-	//SupportsStreaming() bool
 
 	// TODO(ryszard): Implement this.
 	//SupportedParameters() []string

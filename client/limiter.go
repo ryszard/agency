@@ -34,11 +34,3 @@ func (client *rateLimitingClient) CreateChatCompletion(ctx context.Context, req 
 	}
 	return client.client.CreateChatCompletion(ctx, req)
 }
-
-func (client *rateLimitingClient) CreateChatCompletionStream(ctx context.Context, req ChatCompletionStreamRequest) (ChatCompletionStream, error) {
-	log.WithField("req", req).Info("CreateChatCompletionStream")
-	if err := client.limiter.Wait(ctx); err != nil {
-		return nil, err
-	}
-	return client.client.CreateChatCompletionStream(ctx, req)
-}
