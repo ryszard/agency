@@ -8,8 +8,29 @@ import (
 	"github.com/sashabaranov/go-openai"
 )
 
+const (
+	GPT432K0314       = "gpt-4-32k-0314"
+	GPT432K           = "gpt-4-32k"
+	GPT40314          = "gpt-4-0314"
+	GPT4              = "gpt-4"
+	GPT3Dot5Turbo0301 = "gpt-3.5-turbo-0301"
+	GPT3Dot5Turbo     = "gpt-3.5-turbo"
+)
+
 type Client struct {
-	client openai.Client
+	client *openai.Client
+}
+
+func New(apiKey string) *Client {
+	return &Client{
+		client: openai.NewClient(apiKey),
+	}
+}
+
+func NewClient(cl *openai.Client) *Client {
+	return &Client{
+		client: cl,
+	}
 }
 
 func (Client) SupportsStreaming() bool {

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/ryszard/agency/client"
 	"github.com/sashabaranov/go-openai"
 	log "github.com/sirupsen/logrus"
 	"github.com/tiktoken-go/tokenizer"
@@ -20,13 +21,13 @@ import (
 //
 // A memory function should not drop any system messages, and should not drop
 // the last user message. If this is impossible, it should return an error.
-type Memory func(context.Context, Config, []openai.ChatCompletionMessage) ([]openai.ChatCompletionMessage, error)
+type Memory func(context.Context, Config, []client.Message) ([]client.Message, error)
 
 // BufferMemory is a memory that keeps the last n messages. All the system
 // messages will be kept. If the buffer size is too small, it will return an
 // error.
 func BufferMemory(n int) Memory {
-	return func(ctx context.Context, cfg Config, messages []openai.ChatCompletionMessage) ([]openai.ChatCompletionMessage, error) {
+	return func(ctx context.Context, cfg Config, messages []client.Message) ([]client.Message, error) {
 
 		// if there's less or equal to n messages, return all the messages
 		if len(messages) <= n {
@@ -48,7 +49,7 @@ func BufferMemory(n int) Memory {
 		}
 
 		// initialize the new messages slice
-		newMessages := make([]openai.ChatCompletionMessage, 0, n)
+		newMessages := make([]client.Message, 0, n)
 
 		// iterate over messages from the end. If you encounter a system
 		// message, add it to the new messages slice, and decrease
@@ -84,11 +85,11 @@ func BufferMemory(n int) Memory {
 	}
 }
 
-type tokenCounter func(cfg Config, message openai.ChatCompletionMessage) (int, error)
+type tokenCounter func(cfg Config, message client.Message) (int, error)
 
 // tokenCount returns the number of tokens in a message.
-func tokenCount(cfg Config, message openai.ChatCompletionMessage) (int, error) {
-	codec, err := tokenizer.ForModel(tokenizer.Model(cfg.Model))
+func tokenCount(cfg Config, message client.Message) (int, error) {
+	codec, err := tokenizer.ForModel(tokenizer.Model(cfg.RequestTemplate.Model))
 	if err != nil {
 		return 0, err
 	}
@@ -103,10 +104,10 @@ func tokenCount(cfg Config, message openai.ChatCompletionMessage) (int, error) {
 
 func partitionByTokenLimit(
 	cfg Config,
-	messages []openai.ChatCompletionMessage,
+	messages []client.Message,
 	maxTokens int,
 	tokenCount tokenCounter,
-) ([]openai.ChatCompletionMessage, []openai.ChatCompletionMessage, error) {
+) ([]client.Message, []client.Message, error) {
 	// get the number of tokens in each messages
 	tokens := make([]int, len(messages))
 	total := 0
@@ -140,8 +141,8 @@ func partitionByTokenLimit(
 	}
 
 	// initialize the new messages slice
-	newMessages := make([]openai.ChatCompletionMessage, 0, len(messages))
-	droppedMessages := make([]openai.ChatCompletionMessage, 0)
+	newMessages := make([]client.Message, 0, len(messages))
+	droppedMessages := make([]client.Message, 0)
 
 	startedDropping := false
 
@@ -207,8 +208,8 @@ func TokenBufferMemory(fillRatio float64) Memory {
 		panic("fillRatio must be in the range (0, 1]")
 	}
 
-	return func(ctx context.Context, cfg Config, messages []openai.ChatCompletionMessage) ([]openai.ChatCompletionMessage, error) {
-		maxTokens := int(float64(cfg.MaxTokens) * fillRatio)
+	return func(ctx context.Context, cfg Config, messages []client.Message) ([]client.Message, error) {
+		maxTokens := int(float64(cfg.RequestTemplate.MaxTokens) * fillRatio)
 
 		newMessages, droppedMessages, err := partitionByTokenLimit(cfg, messages, maxTokens, tokenCount)
 		if err != nil {
@@ -223,7 +224,7 @@ func TokenBufferMemory(fillRatio float64) Memory {
 }
 
 type SummarizerTemplateValues struct {
-	Messages        []openai.ChatCompletionMessage
+	Messages        []client.Message
 	PreviousSummary string
 }
 
@@ -273,8 +274,8 @@ func SummarizerMemoryWithTemplate(fillRatio float64, tmpl *template.Template, op
 		panic("fillRatio must be in the range (0, 1]")
 	}
 
-	return func(ctx context.Context, cfg Config, messages []openai.ChatCompletionMessage) ([]openai.ChatCompletionMessage, error) {
-		maxTokens := int(float64(cfg.MaxTokens) * fillRatio)
+	return func(ctx context.Context, cfg Config, messages []client.Message) ([]client.Message, error) {
+		maxTokens := int(float64(cfg.RequestTemplate.MaxTokens) * fillRatio)
 
 		retainedMessages, droppedMessages, err := partitionByTokenLimit(cfg, messages, maxTokens, tokenCount)
 		if err != nil {
@@ -340,9 +341,9 @@ func SummarizerMemoryWithTemplate(fillRatio float64, tmpl *template.Template, op
 		log.WithField("messages", droppedMessages).Debug("Dropped messages.")
 		log.WithField("summary", wr.String()).Debug("Summary message.")
 
-		newMessages := make([]openai.ChatCompletionMessage, 0, len(retainedMessages)+1)
-		newMessages = append(newMessages, openai.ChatCompletionMessage{
-			Role:    openai.ChatMessageRoleSystem,
+		newMessages := make([]client.Message, 0, len(retainedMessages)+1)
+		newMessages = append(newMessages, client.Message{
+			Role:    client.System,
 			Content: wr.String(),
 		})
 

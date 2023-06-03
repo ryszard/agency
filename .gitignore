@@ -59,4 +59,6 @@ Temporary Items
 
 # End of https://www.toptal.com/developers/gitignore/api/go,macos
 log.txt
-cmd/advisor/cache.bolt
+cache.bolt
+*.log
+cache.db

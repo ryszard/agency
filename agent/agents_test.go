@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/sashabaranov/go-openai"
+	"github.com/ryszard/agency/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -18,7 +18,7 @@ func TestAgentSystem(t *testing.T) {
 
 		ag.System(systemMessage)
 
-		want := []openai.ChatCompletionMessage{
+		want := []client.Message{
 			{
 				Content: systemMessage,
 				Role:    "system",
@@ -35,26 +35,26 @@ type MockClient struct {
 	mock.Mock
 }
 
-func (m *MockClient) CreateChatCompletion(ctx context.Context, req openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error) {
+func (m *MockClient) CreateChatCompletion(ctx context.Context, req client.ChatCompletionRequest) (client.ChatCompletionResponse, error) {
 	args := m.Called(ctx, req)
-	return args.Get(0).(openai.ChatCompletionResponse), args.Error(1)
+	return args.Get(0).(client.ChatCompletionResponse), args.Error(1)
 }
 
-func (m *MockClient) CreateChatCompletionStream(ctx context.Context, req openai.ChatCompletionRequest) (*openai.ChatCompletionStream, error) {
+func (m *MockClient) CreateChatCompletionStream(ctx context.Context, req client.ChatCompletionStreamRequest) (client.ChatCompletionStream, error) {
 	args := m.Called(ctx, req)
-	return args.Get(0).(*openai.ChatCompletionStream), args.Error(1)
+	return args.Get(0).(client.ChatCompletionStream), args.Error(1)
 }
 
 func TestRespond(t *testing.T) {
 	ctx := context.Background()
-	messages := []openai.ChatCompletionMessage{
+	messages := []client.Message{
 		{Content: "Message 1", Role: "user"},
 		{Content: "Message 2", Role: "assistant"},
 	}
 
-	expectedResp := openai.ChatCompletionResponse{
-		Choices: []openai.ChatCompletionChoice{
-			{Message: openai.ChatCompletionMessage{Content: "Response", Role: "assistant"}},
+	expectedResp := client.ChatCompletionResponse{
+		Choices: []client.Message{
+			{Content: "Response", Role: "assistant"},
 		},
 	}
 
@@ -70,7 +70,7 @@ func TestRespond(t *testing.T) {
 	assert.Equal(t, "Response", respMsg)
 	assert.Len(t, ac.Messages(), 3)
 
-	expectedReq := openai.ChatCompletionRequest{
+	expectedReq := client.ChatCompletionRequest{
 		Messages: messages,
 	}
 	mockClient.AssertCalled(t, "CreateChatCompletion", ctx, expectedReq)
@@ -78,7 +78,7 @@ func TestRespond(t *testing.T) {
 	// Test error case
 	mockCall.Unset()
 	expectedErr := errors.New("API error")
-	mockClient.On("CreateChatCompletion", ctx, mock.Anything).Return(openai.ChatCompletionResponse{}, expectedErr)
+	mockClient.On("CreateChatCompletion", ctx, mock.Anything).Return(client.ChatCompletionResponse{}, expectedErr)
 
 	_, err = ac.Respond(ctx)
 	assert.Error(t, err)

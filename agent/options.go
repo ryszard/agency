@@ -3,7 +3,7 @@ package agent
 import (
 	"io"
 
-	"github.com/sashabaranov/go-openai"
+	"github.com/ryszard/agency/client"
 )
 
 // Option can be used to configure an agent. Note that the order in which you
@@ -14,18 +14,10 @@ type Option func(*Config)
 
 type Config struct {
 	// openai.ChatCompletionRequest fields
-	Model            string
-	MaxTokens        int
-	Temperature      float32
-	TopP             float32
-	Stop             []string
-	PresencePenalty  float32
-	FrequencyPenalty float32
-	LogitBias        map[string]int
-	User             string
+	RequestTemplate client.ChatCompletionRequest
 
 	// other fields
-	Client Client `json:"-"`
+	Client client.Client `json:"-"`
 
 	// Output is the writer to which the agent will write its output. If nil,
 	// the agent's output will be discarded. This is useful for streaming.
@@ -40,36 +32,25 @@ func (cfg Config) Stream() bool {
 	return cfg.Output != nil
 }
 
-func (ac Config) chatCompletionRequest() openai.ChatCompletionRequest {
-	return openai.ChatCompletionRequest{
-		Model:            ac.Model,
-		MaxTokens:        ac.MaxTokens,
-		Temperature:      ac.Temperature,
-		TopP:             ac.TopP,
-		Stream:           ac.Stream(),
-		Stop:             ac.Stop,
-		PresencePenalty:  ac.PresencePenalty,
-		FrequencyPenalty: ac.FrequencyPenalty,
-		LogitBias:        ac.LogitBias,
-		User:             ac.User,
+func (ac Config) chatCompletionRequest() client.ChatCompletionRequest {
+
+	// FIXME(ryszard): handle Streaming.
+	// return a deep copy of the req
+	req := ac.RequestTemplate
+	if ac.RequestTemplate.CustomParams != nil {
+
+		req.CustomParams = make(map[string]interface{}, len(ac.RequestTemplate.CustomParams))
+		for k, v := range ac.RequestTemplate.CustomParams {
+			req.CustomParams[k] = v
+		}
 	}
+	return req
 }
 
 func (ac Config) clone() Config {
-	return Config{
-		Model:            ac.Model,
-		MaxTokens:        ac.MaxTokens,
-		Temperature:      ac.Temperature,
-		TopP:             ac.TopP,
-		Stop:             ac.Stop,
-		PresencePenalty:  ac.PresencePenalty,
-		FrequencyPenalty: ac.FrequencyPenalty,
-		LogitBias:        ac.LogitBias,
-		User:             ac.User,
-		Client:           ac.Client,
-		Output:           ac.Output,
-		Memory:           ac.Memory,
-	}
+	cfg := ac
+	cfg.RequestTemplate = ac.chatCompletionRequest()
+	return cfg
 }
 
 // WithConfig will make the agent use the given config.
@@ -83,70 +64,28 @@ func WithConfig(cfg Config) Option {
 // the ID of a completion model.
 func WithModel(model string) Option {
 	return func(ac *Config) {
-		ac.Model = model
+		ac.RequestTemplate.Model = model
 	}
 }
 
 // WithMaxTokens sets MaxTokens for the agent.
 func WithMaxTokens(maxTokens int) Option {
 	return func(ac *Config) {
-		ac.MaxTokens = maxTokens
+		ac.RequestTemplate.MaxTokens = maxTokens
 	}
 }
 
 // WithTemperature sets Temperature for the agent.
 func WithTemperature(temperature float32) Option {
 	return func(ac *Config) {
-		ac.Temperature = temperature
-	}
-}
-
-// WithTopP sets
-func WithTopP(topP float32) Option {
-	return func(ac *Config) {
-		ac.TopP = topP
-	}
-}
-
-// WithStop sets Stop for the agent.
-func WithStop(stop []string) Option {
-	return func(ac *Config) {
-		ac.Stop = stop
-	}
-}
-
-// WithPresencePenalty sets
-func WithPresencePenalty(presencePenalty float32) Option {
-	return func(ac *Config) {
-		ac.PresencePenalty = presencePenalty
-	}
-}
-
-// WithFrequencyPenalty sets FrequencyPenalty for the agent.
-func WithFrequencyPenalty(frequencyPenalty float32) Option {
-	return func(ac *Config) {
-		ac.FrequencyPenalty = frequencyPenalty
-	}
-}
-
-// WithLogitBias sets LogitBias for the agent.
-func WithLogitBias(logitBias map[string]int) Option {
-	return func(ac *Config) {
-		ac.LogitBias = logitBias
-	}
-}
-
-// WithUser sets User for the agent.
-func WithUser(user string) Option {
-	return func(ac *Config) {
-		ac.User = user
+		ac.RequestTemplate.Temperature = temperature
 	}
 }
 
 // WithClient will make the agent use the given client.
-func WithClient(client Client) Option {
+func WithClient(cl client.Client) Option {
 	return func(ac *Config) {
-		ac.Client = client
+		ac.Client = cl
 	}
 }
 
@@ -177,5 +116,10 @@ func WithoutStreaming() Option {
 func WithMemory(memory Memory) Option {
 	return func(ac *Config) {
 		ac.Memory = memory
+	}
+}
+func WithCustomParams(params map[string]interface{}) Option {
+	return func(ac *Config) {
+		ac.RequestTemplate.CustomParams = params
 	}
 }

@@ -6,13 +6,13 @@ import (
 	"os"
 
 	"github.com/ryszard/agency/agent"
-	"github.com/sashabaranov/go-openai"
+	"github.com/ryszard/agency/client/openai"
 	log "github.com/sirupsen/logrus"
 )
 
 func main() {
 	log.SetLevel(log.ErrorLevel)
-	client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
+	client := openai.New(os.Getenv("OPENAI_API_KEY"))
 
 	// Initialize a poet agent and a critic agent
 	poet := agent.New("poet",

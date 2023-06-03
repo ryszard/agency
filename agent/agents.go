@@ -4,10 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
-	"strings"
 
-	"github.com/sashabaranov/go-openai"
+	"github.com/ryszard/agency/client"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -41,10 +39,10 @@ type Agent interface {
 	Respond(ctx context.Context, options ...Option) (message string, err error)
 
 	// Messages returns all messages that the agent has sent and received.
-	Messages() []openai.ChatCompletionMessage
+	Messages() []client.Message
 
 	// Append appends messages to the agent's messages.
-	Append(messages ...openai.ChatCompletionMessage)
+	Append(messages ...client.Message)
 
 	// Config returns the agent's config.
 	Config() Config
@@ -62,7 +60,7 @@ var _ Agent = &BaseAgent{}
 // want to use it as a base for your own agents.
 type BaseAgent struct {
 	name     string
-	messages []openai.ChatCompletionMessage
+	messages []client.Message
 	config   Config
 }
 
@@ -70,7 +68,7 @@ func (ag *BaseAgent) Config() Config {
 	return ag.config
 }
 
-func (ag *BaseAgent) Messages() []openai.ChatCompletionMessage {
+func (ag *BaseAgent) Messages() []client.Message {
 	return ag.messages
 }
 
@@ -91,7 +89,7 @@ func NewBaseAgent(name string, options ...Option) *BaseAgent {
 	return ag
 }
 
-func (ag *BaseAgent) Append(messages ...openai.ChatCompletionMessage) {
+func (ag *BaseAgent) Append(messages ...client.Message) {
 	ag.messages = append(ag.messages, messages...)
 }
 
@@ -99,9 +97,9 @@ func (ag *BaseAgent) System(message string, data ...any) (string, error) {
 	if len(data) > 0 {
 		return "", errors.New("this agent does not support passing data to System")
 	}
-	ag.Append(openai.ChatCompletionMessage{
+	ag.Append(client.Message{
 		Content: message,
-		Role:    "system",
+		Role:    client.System,
 	})
 	return message, nil
 }
@@ -111,16 +109,16 @@ func (ag *BaseAgent) Listen(message string, data ...any) (string, error) {
 	if len(data) > 0 {
 		return "", errors.New("this agent does not support passing data to Listen")
 	}
-	ag.Append(openai.ChatCompletionMessage{
+	ag.Append(client.Message{
 		Content: message,
-		Role:    "user",
+		Role:    client.User,
 	})
 	log.WithField("messages", ag.Messages()).WithField("agent", ag.Name()).Trace("Listen Messages")
 
 	return message, nil
 }
 
-func (ag *BaseAgent) createRequest(options []Option) (Config, openai.ChatCompletionRequest) {
+func (ag *BaseAgent) createRequest(options []Option) (Config, client.ChatCompletionRequest) {
 	cfg := ag.config.clone()
 	for _, opt := range options {
 		opt(&cfg)
@@ -133,7 +131,7 @@ func (ag *BaseAgent) createRequest(options []Option) (Config, openai.ChatComplet
 
 func (ag *BaseAgent) Respond(ctx context.Context, options ...Option) (message string, err error) {
 
-	logger := log.WithField("actor", ag.name)
+	logger := log.WithField("agent", ag.name)
 
 	cfg, req := ag.createRequest(options)
 
@@ -158,54 +156,57 @@ func (ag *BaseAgent) Respond(ctx context.Context, options ...Option) (message st
 	}
 	logger.WithField("response", fmt.Sprintf("%+v", resp)).Info("Received response from OpenAI API")
 
-	msg := resp.Choices[0].Message
+	msg := resp.Choices[0]
 	ag.Append(msg)
 
 	return msg.Content, nil
 }
 
 func (ag *BaseAgent) respondStream(ctx context.Context, options ...Option) (string, error) {
-	cfg, req := ag.createRequest(options)
-	logger := log.WithField("actor", ag.name)
+	return "", nil
 
-	req.Stream = true
-	logger.WithFields(log.Fields{
-		"request": fmt.Sprintf("%+v", req),
-		"stream":  true,
-	}).Info("RespondStream: Sending request")
-	stream, err := cfg.Client.CreateChatCompletionStream(ctx, req)
-	if err != nil {
-		return "", err
-	}
+	// cfg, req := ag.createRequest(options)
+	// logger := log.WithField("actor", ag.name)
 
-	defer stream.Close()
+	// // FIXME(ryszard): Fix the stream handling. It's currently broken.
+	// //req.Stream = true
+	// logger.WithFields(log.Fields{
+	// 	"request": fmt.Sprintf("%+v", req),
+	// 	"stream":  true,
+	// }).Info("RespondStream: Sending request")
+	// stream, err := cfg.Client.CreateChatCompletionStream(ctx, req)
+	// if err != nil {
+	// 	return "", err
+	// }
 
-	var b strings.Builder
+	// defer stream.Close()
 
-	for {
-		r, err := stream.Recv()
-		if errors.Is(err, io.EOF) {
-			break
-		} else if err != nil {
-			return "", err
-		}
-		//logger.WithField("stream response", fmt.Sprintf("%+v", r)).Trace("Received response from OpenAI API")
-		delta := r.Choices[0].Delta.Content
-		if _, err := b.WriteString(delta); err != nil {
-			return "", err
-		}
-		if _, err := cfg.Output.Write([]byte(delta)); err != nil {
-			return "", err
-		}
+	// var b strings.Builder
 
-	}
-	cfg.Output.Write([]byte("\n\n"))
+	// for {
+	// 	r, err := stream.Recv()
+	// 	if errors.Is(err, io.EOF) {
+	// 		break
+	// 	} else if err != nil {
+	// 		return "", err
+	// 	}
+	// 	//logger.WithField("stream response", fmt.Sprintf("%+v", r)).Trace("Received response from OpenAI API")
+	// 	delta := r.Choices[0].Delta.Content
+	// 	if _, err := b.WriteString(delta); err != nil {
+	// 		return "", err
+	// 	}
+	// 	if _, err := cfg.Output.Write([]byte(delta)); err != nil {
+	// 		return "", err
+	// 	}
 
-	message := openai.ChatCompletionMessage{
-		Content: b.String(),
-		Role:    openai.ChatMessageRoleAssistant,
-	}
+	// }
+	// cfg.Output.Write([]byte("\n\n"))
 
-	ag.Append(message)
-	return b.String(), nil
+	// message := client.Message{
+	// 	Content: b.String(),
+	// 	Role:    openai.ChatMessageRoleAssistant,
+	// }
+
+	// ag.Append(message)
+	// return b.String(), nil
 }

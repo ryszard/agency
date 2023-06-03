@@ -9,7 +9,8 @@ import (
 	"time"
 
 	"github.com/ryszard/agency/agent"
-	"github.com/sashabaranov/go-openai"
+	"github.com/ryszard/agency/client"
+	"github.com/ryszard/agency/client/openai"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -30,11 +31,10 @@ func main() {
 
 	log.SetLevel(level)
 
-	client := agent.Retrying(openai.NewClient(os.Getenv("OPENAI_API_KEY")),
-		1*time.Second, 30*time.Second, 20)
+	cl := client.Retrying(openai.New(os.Getenv("OPENAI_API_KEY")), 1*time.Second, 30*time.Second, 20)
 
 	bot := agent.New("assistant",
-		agent.WithClient(client),
+		agent.WithClient(cl),
 		agent.WithModel(*model),
 		agent.WithMaxTokens(*maxTokens),
 		agent.WithTemperature(float32(*temperature)),

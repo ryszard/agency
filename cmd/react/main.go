@@ -9,11 +9,13 @@ import (
 
 	"github.com/ryszard/agency/agent"
 	"github.com/ryszard/agency/agent/react"
+	"github.com/ryszard/agency/client"
+	"github.com/ryszard/agency/client/openai"
 	"github.com/ryszard/agency/tools/bash"
 	"github.com/ryszard/agency/tools/human"
 	"github.com/ryszard/agency/tools/python"
 	"github.com/ryszard/agency/util/cache"
-	"github.com/sashabaranov/go-openai"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -37,23 +39,23 @@ func main() {
 
 	log.SetLevel(level)
 
-	client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
+	var cl client.Client = openai.New(os.Getenv("OPENAI_API_KEY"))
 
 	cach, err := cache.BoltDB("./cache.db")
 	if err != nil {
 		log.WithError(err).Fatal("error")
 	}
 
+	cl = client.Cached(cl, cach)
+
 	ag := agent.New("pythonista",
-		agent.WithClient(client),
+		agent.WithClient(cl),
 		agent.WithMaxTokens(*maxTokens),
 		agent.WithTemperature(float32(*temperature)),
 		agent.WithModel(*model),
 		agent.WithStreaming(os.Stdout),
 		agent.WithMemory(agent.TokenBufferMemory(.9)),
 	)
-
-	ag = agent.Cached(ag, cach)
 
 	bash := bash.New("/bin/bash")
 	python, err := python.New(*pythonPath)

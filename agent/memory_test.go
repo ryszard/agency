@@ -4,16 +4,16 @@ import (
 	"context"
 	"testing"
 
-	openai "github.com/sashabaranov/go-openai"
+	"github.com/ryszard/agency/client"
 )
 
 // Test case where there are more relevant messages than the buffer size.
 func TestBufferMemoryOverflow(t *testing.T) {
-	messages := []openai.ChatCompletionMessage{
-		{Role: "system", Content: "Hello, world!", Name: "system1"},
-		{Role: "user", Content: "Hi, system!", Name: "user1"},
-		{Role: "system", Content: "Hello again, world!", Name: "system2"},
-		{Role: "assistant", Content: "Hi, user!", Name: "assistant1"},
+	messages := []client.Message{
+		{Role: "system", Content: "Hello, world!"},
+		{Role: "user", Content: "Hi, system!"},
+		{Role: "system", Content: "Hello again, world!"},
+		{Role: "assistant", Content: "Hi, user!"},
 	}
 
 	memory := BufferMemory(2)
@@ -26,9 +26,9 @@ func TestBufferMemoryOverflow(t *testing.T) {
 
 // Test case where there are just enough messages to fit in the buffer.
 func TestBufferMemoryExactFit(t *testing.T) {
-	messages := []openai.ChatCompletionMessage{
-		{Role: "system", Content: "Hello, world!", Name: "system1"},
-		{Role: "user", Content: "Hi, system!", Name: "user1"},
+	messages := []client.Message{
+		{Role: "system", Content: "Hello, world!"},
+		{Role: "user", Content: "Hi, system!"},
 	}
 
 	memory := BufferMemory(2)
@@ -44,10 +44,10 @@ func TestBufferMemoryExactFit(t *testing.T) {
 	}
 
 	// Check that the messages are correct and in the right order.
-	if bufferedMessages[0].Role != "system" || bufferedMessages[0].Content != "Hello, world!" || bufferedMessages[0].Name != "system1" {
+	if bufferedMessages[0].Role != "system" || bufferedMessages[0].Content != "Hello, world!" {
 		t.Errorf("Unexpected first message: %v", bufferedMessages[0])
 	}
-	if bufferedMessages[1].Role != "user" || bufferedMessages[1].Content != "Hi, system!" || bufferedMessages[1].Name != "user1" {
+	if bufferedMessages[1].Role != "user" || bufferedMessages[1].Content != "Hi, system!" {
 		t.Errorf("Unexpected second message: %v", bufferedMessages[1])
 	}
 }
@@ -57,12 +57,12 @@ func TestBufferMemoryExactFit(t *testing.T) {
 // Test case where there are system messages, user messages, and assistant messages
 // in a random order.
 func TestBufferMemoryRandomOrder(t *testing.T) {
-	messages := []openai.ChatCompletionMessage{
-		{Role: "system", Content: "Hello, world!", Name: "system1"},
-		{Role: "user", Content: "Hi, system!", Name: "user1"},
-		{Role: "assistant", Content: "Hi, user!", Name: "assistant1"},
-		{Role: "system", Content: "Hello again, world!", Name: "system2"},
-		{Role: "assistant", Content: "How can I assist you today?", Name: "assistant2"},
+	messages := []client.Message{
+		{Role: "system", Content: "Hello, world!"},
+		{Role: "user", Content: "Hi, system!"},
+		{Role: "assistant", Content: "Hi, user!"},
+		{Role: "system", Content: "Hello again, world!"},
+		{Role: "assistant", Content: "How can I assist you today?"},
 	}
 
 	memory := BufferMemory(4)
@@ -79,26 +79,26 @@ func TestBufferMemoryRandomOrder(t *testing.T) {
 
 	// Check that the messages are correct and in the right order.
 	// Expecting the messages "system1", "assistant1", "system2", "assistant2"
-	expectedMessages := []openai.ChatCompletionMessage{messages[0], messages[2], messages[3], messages[4]}
+	expectedMessages := []client.Message{messages[0], messages[2], messages[3], messages[4]}
 	for i, msg := range expectedMessages {
-		if bufferedMessages[i].Role != msg.Role || bufferedMessages[i].Content != msg.Content || bufferedMessages[i].Name != msg.Name {
+		if bufferedMessages[i].Role != msg.Role || bufferedMessages[i].Content != msg.Content {
 			t.Errorf("Unexpected message at index %d: %v", i, bufferedMessages[i])
 		}
 	}
 }
 
 func TestPartitionByTokenLimit(t *testing.T) {
-	messages := []openai.ChatCompletionMessage{
-		{Role: "system", Content: " ", Name: "0"},
-		{Role: "user", Content: " ", Name: "1"},
-		{Role: "assistant", Content: " ", Name: "2"},
-		{Role: "user", Content: " ", Name: "3"},
-		{Role: "assistant", Content: " ", Name: "4"},
-		{Role: "user", Content: " ", Name: "5"},
-		{Role: "assistant", Content: " ", Name: "6"},
+	messages := []client.Message{
+		{Role: "system", Content: " "},
+		{Role: "user", Content: " "},
+		{Role: "assistant", Content: " "},
+		{Role: "user", Content: " "},
+		{Role: "assistant", Content: " "},
+		{Role: "user", Content: " "},
+		{Role: "assistant", Content: " "},
 	}
 
-	tokenCount := func(cfg Config, msg openai.ChatCompletionMessage) (int, error) {
+	tokenCount := func(cfg Config, msg client.Message) (int, error) {
 		return len(msg.Content), nil
 	}
 
@@ -117,9 +117,9 @@ func TestPartitionByTokenLimit(t *testing.T) {
 
 	// Check that the messages are correct and in the right order.
 	// Expecting the messages "0", "4", "5","6"
-	expectedMessages := []openai.ChatCompletionMessage{messages[0], messages[4], messages[5], messages[6]}
+	expectedMessages := []client.Message{messages[0], messages[4], messages[5], messages[6]}
 	for i, msg := range expectedMessages {
-		if retainedMessages[i].Role != msg.Role || retainedMessages[i].Content != msg.Content || retainedMessages[i].Name != msg.Name {
+		if retainedMessages[i].Role != msg.Role || retainedMessages[i].Content != msg.Content {
 			t.Errorf("Unexpected message at index %d: %v", i, retainedMessages[i])
 		}
 	}
@@ -127,17 +127,17 @@ func TestPartitionByTokenLimit(t *testing.T) {
 }
 
 func TestPartitionByTokenLimitLongerMessages(t *testing.T) {
-	messages := []openai.ChatCompletionMessage{
-		{Role: "system", Content: " ", Name: "0"},
-		{Role: "user", Content: " ", Name: "1"},
-		{Role: "assistant", Content: " ", Name: "2"},
-		{Role: "user", Content: " ", Name: "3"},
-		{Role: "assistant", Content: " ", Name: "4"},
-		{Role: "user", Content: "55555555555555", Name: "5"},
-		{Role: "assistant", Content: " ", Name: "6"},
+	messages := []client.Message{
+		{Role: "system", Content: " "},
+		{Role: "user", Content: " "},
+		{Role: "assistant", Content: " "},
+		{Role: "user", Content: " "},
+		{Role: "assistant", Content: " "},
+		{Role: "user", Content: "55555555555555"},
+		{Role: "assistant", Content: " "},
 	}
 
-	tokenCount := func(cfg Config, msg openai.ChatCompletionMessage) (int, error) {
+	tokenCount := func(cfg Config, msg client.Message) (int, error) {
 		return len(msg.Content), nil
 	}
 
@@ -145,9 +145,9 @@ func TestPartitionByTokenLimitLongerMessages(t *testing.T) {
 
 	// Check that the messages are correct and in the right order.
 	// Expecting the messages "0","6" - 5 is too long to fit in the buffer.
-	expectedMessages := []openai.ChatCompletionMessage{messages[0], messages[6]}
+	expectedMessages := []client.Message{messages[0], messages[6]}
 	for i, msg := range expectedMessages {
-		if retainedMessages[i].Role != msg.Role || retainedMessages[i].Content != msg.Content || retainedMessages[i].Name != msg.Name {
+		if retainedMessages[i].Role != msg.Role || retainedMessages[i].Content != msg.Content {
 			t.Errorf("Unexpected message at index %d: %v", i, retainedMessages[i])
 		}
 	}
@@ -155,18 +155,18 @@ func TestPartitionByTokenLimitLongerMessages(t *testing.T) {
 }
 
 func TestTokenBufferMemory(t *testing.T) {
-	messages := []openai.ChatCompletionMessage{
-		{Role: "system", Content: "Hello, world!", Name: "system1"},
-		{Role: "user", Content: "Hi, system!", Name: "user1"},
-		{Role: "assistant", Content: "Hi, user!", Name: "assistant1"},
-		{Role: "system", Content: "Hello again, world!", Name: "system2"},
-		{Role: "assistant", Content: "How can I assist you today?", Name: "assistant2"},
+	messages := []client.Message{
+		{Role: client.System, Content: "Hello, world!"},
+		{Role: client.User, Content: "Hi, system!"},
+		{Role: client.Assistant, Content: "Hi, user!"},
+		{Role: client.System, Content: "Hello again, world!"},
+		{Role: client.Assistant, Content: "How can I assist you today?"},
 	}
 
 	fillRatio := 0.9
 
 	memory := TokenBufferMemory(fillRatio)
-	cfg := Config{Model: "gpt-4"}
+	cfg := Config{RequestTemplate: client.ChatCompletionRequest{Model: "gpt-4"}}
 
 	// We will set MaxTokens to drop the user1 message
 	allTokens := 0
@@ -186,7 +186,7 @@ func TestTokenBufferMemory(t *testing.T) {
 		t.Errorf("Unexpected error in tokenCount: %v", err)
 	}
 
-	cfg.MaxTokens = allTokens - droppedTokens + 1
+	cfg.RequestTemplate.MaxTokens = allTokens - droppedTokens + 1
 
 	bufferedMessages, err := memory(context.TODO(), cfg, messages)
 	if err != nil {
@@ -203,12 +203,12 @@ func TestTokenBufferMemory(t *testing.T) {
 		totalTokens += tokenLen
 	}
 
-	if totalTokens > cfg.MaxTokens {
-		t.Errorf("Total tokens (%d) exceed MaxTokens (%d)", totalTokens, cfg.MaxTokens)
+	if totalTokens > cfg.RequestTemplate.MaxTokens {
+		t.Errorf("Total tokens (%d) exceed MaxTokens (%d)", totalTokens, cfg.RequestTemplate.MaxTokens)
 	}
 
 	// Last message of input should be the last message of output
-	if bufferedMessages[len(bufferedMessages)-1].Name != messages[len(messages)-1].Name {
+	if bufferedMessages[len(bufferedMessages)-1].Content != messages[len(messages)-1].Content {
 		t.Errorf("Last message of output does not match last message of input")
 	}
 
@@ -217,13 +217,13 @@ func TestTokenBufferMemory(t *testing.T) {
 		if inputMsg.Role == "system" {
 			found := false
 			for _, outputMsg := range bufferedMessages {
-				if outputMsg.Name == inputMsg.Name {
+				if outputMsg.Content == inputMsg.Content {
 					found = true
 					break
 				}
 			}
 			if !found {
-				t.Errorf("System message '%s' from input not found in output", inputMsg.Name)
+				t.Errorf("System message '%s' from input not found in output", inputMsg.Content)
 			}
 		}
 	}
@@ -232,7 +232,7 @@ func TestTokenBufferMemory(t *testing.T) {
 	lastIndex := -1
 	for _, inputMsg := range messages {
 		for i, outputMsg := range bufferedMessages {
-			if outputMsg.Name == inputMsg.Name {
+			if outputMsg.Content == inputMsg.Content {
 				if i < lastIndex {
 					t.Errorf("Message order has changed in output")
 				}

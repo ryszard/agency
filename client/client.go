@@ -2,6 +2,11 @@ package client
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type Role string
@@ -34,6 +39,19 @@ type ChatCompletionRequest struct {
 	CustomParams map[string]interface{} `json:"params"`
 }
 
+func (r ChatCompletionRequest) hash() ([]byte, error) {
+	data, err := json.Marshal(r)
+	if err != nil {
+		log.WithError(err).Error("hash: failed to marshal messages")
+		return nil, err
+	}
+
+	hash := sha256.Sum256(data)
+	return []byte(hex.EncodeToString(hash[:])), nil
+
+}
+
+// FIXME(ryszard): Implement hashing for the streaming request.
 type ChatCompletionStreamRequest interface{}
 
 type ChatCompletionStream chan []string
@@ -43,7 +61,7 @@ type ChatCompletionStream chan []string
 type Client interface {
 	CreateChatCompletion(ctx context.Context, req ChatCompletionRequest) (ChatCompletionResponse, error)
 	CreateChatCompletionStream(ctx context.Context, req ChatCompletionStreamRequest) (ChatCompletionStream, error)
-	SupportsStreaming() bool
+	//SupportsStreaming() bool
 
 	// TODO(ryszard): Implement this.
 	//SupportedParameters() []string
