@@ -1,6 +1,7 @@
 package huggingface
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/ryszard/agency/client"
@@ -8,30 +9,56 @@ import (
 )
 
 func TestTranslateResponse(t *testing.T) {
-	convResp := ConversationalResponse{
-		GeneratedText: "Hello, I'm an AI.",
-	}
-
-	expected := client.ChatCompletionResponse{
-		Choices: []client.Message{
-			{
-				Content: "Hello, I'm an AI.",
-				Role:    "assistant",
+	for _, tc := range []struct {
+		name     string
+		convResp ConversationalResponse
+		expected client.ChatCompletionResponse
+		err      error
+	}{
+		{
+			name: "basic",
+			convResp: ConversationalResponse{
+				GeneratedText: "Hello, I'm an AI.",
+			},
+			expected: client.ChatCompletionResponse{
+				Choices: []client.Message{
+					{
+						Content: "Hello, I'm an AI.",
+						Role:    "assistant",
+					},
+				},
 			},
 		},
-	}
 
-	result := TranslateResponse(convResp)
+		{
+			name: "error",
+			convResp: ConversationalResponse{
+				Error: "error",
+			},
+			err:      errors.New("error"),
+			expected: client.ChatCompletionResponse{},
+		},
+	} {
+		result, err := TranslateResponse(tc.convResp)
+		if tc.err != nil {
+			if tc.err.Error() != err.Error() {
+				t.Fatalf("Expected error %v, but got %v", tc.err, err)
+			} else if err == nil {
+				t.Fatal("Expected error, but got nil")
+			}
+		}
 
-	if len(result.Choices) != len(expected.Choices) {
-		t.Errorf("Expected %v choice(s), but got %v", len(expected.Choices), len(result.Choices))
-	}
+		if len(result.Choices) != len(tc.expected.Choices) {
+			t.Errorf("Expected %v choice(s), but got %v", len(tc.expected.Choices), len(result.Choices))
+		}
 
-	for i, message := range result.Choices {
-		if message.Content != expected.Choices[i].Content || message.Role != expected.Choices[i].Role {
-			t.Errorf("Expected message %v to be %v, but got %v", i, expected.Choices[i], message)
+		for i, message := range result.Choices {
+			if message.Content != tc.expected.Choices[i].Content || message.Role != tc.expected.Choices[i].Role {
+				t.Errorf("Expected message %v to be %v, but got %v", i, tc.expected.Choices[i], message)
+			}
 		}
 	}
+
 }
 
 func TestTranslateRequest(t *testing.T) {

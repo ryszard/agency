@@ -25,8 +25,6 @@ func (Client) SupportsStreaming() bool {
 }
 
 func New(token string) *Client {
-	log.WithField("token", token).Info("huggingface client")
-
 	return &Client{
 		token:   token,
 		http:    &http.Client{},
@@ -61,25 +59,28 @@ type ConversationalRequest struct {
 
 type ConversationalResponse struct {
 	GeneratedText string `json:"generated_text,omitempty"`
+	Error         string `json:"error,omitempty"`
 }
 
 func (cl *Client) CreateChatCompletion(ctx context.Context, request client.ChatCompletionRequest) (client.ChatCompletionResponse, error) {
-	payload := ConversationalRequest{
-		Model:              "microsoft/DialoGPT-large",
-		Text:               "Hi, what are your capabilities",
-		PastUserInputs:     []string{},
-		GeneratedResponses: []string{},
-		Options:            Options{UseCache: false, WaitForModel: false},
-		Parameters:         Parameters{MaxLength: 100, Temperature: 0},
+	log.WithField("request", request).Debug("huggingface client CreateChatCompletion")
+	if request.WantsStreaming() {
+		log.Warn("huggingface client does not support streaming")
 	}
+	payload, err := TranslateRequest(request)
+	if err != nil {
+		return client.ChatCompletionResponse{}, err
+	}
+	log.WithField("payload", fmt.Sprintf("%#v", payload)).Debug("huggingface request")
+
 	var resp ConversationalResponse
 	if err := cl.MakeRequest(ctx, cl.baseURL+payload.Model, payload, &resp); err != nil {
 
 		return client.ChatCompletionResponse{}, err
 	}
 	log.WithField("resp", resp).Debug("huggingface response")
-
-	return client.ChatCompletionResponse{}, fmt.Errorf("not implemented")
+	request.Stream.Write([]byte(resp.GeneratedText + "\n"))
+	return TranslateResponse(resp)
 }
 
 func (cl *Client) MakeRequest(ctx context.Context, urlStr string, payload any, out any) error {
@@ -93,7 +94,7 @@ func (cl *Client) MakeRequest(ctx context.Context, urlStr string, payload any, o
 	if err != nil {
 		return err
 	}
-
+	log.WithField("data", string(data)).Debug("huggingface request body")
 	req, err := http.NewRequestWithContext(ctx, "POST", urlStr, bytes.NewReader(data))
 	if err != nil {
 		return err
@@ -106,6 +107,7 @@ func (cl *Client) MakeRequest(ctx context.Context, urlStr string, payload any, o
 	if err != nil {
 		return err
 	}
+	log.WithField("status", resp.Status).WithField("status code", resp.StatusCode).Debug("huggingface response")
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
@@ -116,11 +118,13 @@ func (cl *Client) MakeRequest(ctx context.Context, urlStr string, payload any, o
 	if err := json.Unmarshal(respBody, &out); err != nil {
 		return err
 	}
-	fmt.Printf("out: %#v\n", out)
 	return nil
 }
 
-func TranslateResponse(cr ConversationalResponse) client.ChatCompletionResponse {
+func TranslateResponse(cr ConversationalResponse) (client.ChatCompletionResponse, error) {
+	if cr.Error != "" {
+		return client.ChatCompletionResponse{}, errors.New(cr.Error)
+	}
 	msg := client.Message{
 		Content: cr.GeneratedText,
 		Role:    client.Assistant,
@@ -130,7 +134,7 @@ func TranslateResponse(cr ConversationalResponse) client.ChatCompletionResponse 
 		Choices: []client.Message{msg},
 	}
 
-	return ccr
+	return ccr, nil
 }
 
 // reservedParams is the list of parameters that cannot be part of the custom
