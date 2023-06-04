@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"strings"
 	"text/template"
-
-	log "github.com/sirupsen/logrus"
 )
 
 // TemplatedAgent is an agent that supports templating. It wraps another agent
@@ -42,6 +40,16 @@ var _ Agent = &TemplatedAgent{}
 // the given name and the given data. The data is passed to the template's
 // Execute method. The message that was sent to the wrapped agent is returned.
 func (ag *TemplatedAgent) Listen(templateName string, data ...any) (string, error) {
+	p, err := ag.getPrompt(templateName, data...)
+	if err != nil {
+		return "", err
+	}
+
+	return ag.Agent.Listen(p)
+
+}
+
+func (ag *TemplatedAgent) getPrompt(templateName string, data ...any) (string, error) {
 	if len(data) > 1 {
 		return "", fmt.Errorf("templated agent only supports one data argument")
 	}
@@ -56,10 +64,14 @@ func (ag *TemplatedAgent) Listen(templateName string, data ...any) (string, erro
 		return "", err
 	}
 
-	if _, err := ag.Agent.Listen(message.String()); err != nil {
+	return message.String(), nil
+}
+
+func (ag *TemplatedAgent) System(templateName string, data ...any) (string, error) {
+	p, err := ag.getPrompt(templateName, data...)
+	if err != nil {
 		return "", err
 	}
-	log.WithField("templated agent messages", ag.Messages()).Debug("agent messages")
 
-	return message.String(), nil
+	return ag.Agent.System(p)
 }
