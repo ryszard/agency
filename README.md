@@ -1,5 +1,5 @@
 # 🏢🤖Agency
-🚀An Idiomatic Go Interface to Write LLM based agents🚀
+🚀Robust LLM Agent Management with Go🚀
 
 ## 🎯 Overview
 
