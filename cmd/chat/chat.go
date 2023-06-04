@@ -10,6 +10,7 @@ import (
 
 	"github.com/ryszard/agency/agent"
 	"github.com/ryszard/agency/client"
+	"github.com/ryszard/agency/client/exp/huggingface"
 	"github.com/ryszard/agency/client/openai"
 	log "github.com/sirupsen/logrus"
 )
@@ -19,6 +20,7 @@ var (
 	maxTokens   = flag.Int("max_tokens", 1000, "maximum context length")
 	temperature = flag.Float64("temperature", 0.7, "temperature")
 	logLevel    = flag.String("log_level", "error", "log level")
+	platform    = flag.String("platform", "openai", "platform to use")
 )
 
 func main() {
@@ -30,15 +32,29 @@ func main() {
 	}
 
 	log.SetLevel(level)
+	log.SetReportCaller(true)
+	var cl client.Client
+	switch *platform {
+	case "openai":
+		cl = openai.New(os.Getenv("OPENAI_API_KEY"))
+	case "huggingface":
+		cl = huggingface.New(os.Getenv("HUGGINGFACE_API_KEY"))
+	default:
+		log.Fatalf("unknown platform: %s", *platform)
+	}
 
-	cl := client.Retrying(openai.New(os.Getenv("OPENAI_API_KEY")), 1*time.Second, 30*time.Second, 20)
+	cl = client.Retrying(cl, 1*time.Second, 30*time.Second, 20)
 
 	bot := agent.New("assistant",
 		agent.WithClient(cl),
 		agent.WithModel(*model),
 		agent.WithMaxTokens(*maxTokens),
 		agent.WithTemperature(float32(*temperature)),
-		agent.WithMemory(agent.SummarizerMemory(0.5)),
+		agent.WithCustomParams(map[string]interface{}{
+			"repetition_penalty": 40.0,
+			"wait_for_model":     true,
+		}),
+		//agent.WithMemory(agent.SummarizerMemory(0.5)),
 	)
 
 	scanner := bufio.NewScanner(os.Stdin)
