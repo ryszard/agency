@@ -1,8 +1,9 @@
-# 🏢🤖Agency - An Idiomatic Go Interface for the OpenAI API🚀
+# 🏢🤖Agency
+🚀An Idiomatic Go Interface to Write LLM based agents🚀
 
 ## 🎯 Overview
 
-Agency is a Go package designed to provide an idiomatic interface to the OpenAI API. The package aims to simplify the creation and management of Language Learning Model (LLM)-based agents, making it easier for you to work with multiple agents and manage their data flow. It hopes to enable easier implementation of autonomous agent systems, similar to AutoGPT or BabyAGI, to solve a variety of tasks.
+Agency is a Go package designed to provide an idiomatic interface to various LLM providers (currently supporting OpenAI and, experimentally, 🤗Hugging Face). The package aims to simplify the creation and management of Language Learning Model (LLM)-based agents, making it easier for you to work with multiple agents and manage their data flow. It hopes to enable easier implementation of autonomous agent systems, similar to AutoGPT or BabyAGI, to solve a variety of tasks.
 
 It also provides some features one may need to deploy the code into production, like caching, retrying, or rate limiting.
 
@@ -15,7 +16,7 @@ The heart and soul of Agency is the `agent.Agent` type. Its interface features t
 Below is a simple usage example:
 
 ```go
-client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
+client := openai.New(os.Getenv("OPENAI_API_KEY")) // This is github.com/ryszard/agency/client/openai
 ag := agent.New("poet", agent.WithClient(client), agent.WithModel("gpt-4"))
 _, err = ag.Listen("Please write a limerick about a Common Lisp programmer from Reno")
 if err != nil {
@@ -33,7 +34,7 @@ As you can see, Agent behavior can be fine-tuned via Options, as exemplified by 
 ```go
 message, err := ag.Respond(context.Background(), agent.WithStreaming(os.Stdout))
 if err != nil {
-    panic(err)
+    log.Fatalf("failed to respond: %v", err)
 }
 ```
 
@@ -51,16 +52,16 @@ Agency offers several memory implementations (`agent.BufferMemory`, `agent.Token
 In order be more robust and efficient, Agency incorporates features such as retry mechanisms with exponential backoff, rate limiting, and caching. Caching especially beneficial when you need to modify prompts frequently during development and wish to avoid excessive latency or redundant API calls.
 
 ```go
-var client agent.Client = openai.NewClient(os.Getenv("OPENAI_API_KEY"))
+var client client.Client = openai.New(os.Getenv("OPENAI_API_KEY"))
 
 // If you fail, wait 1 second on the first retry, 2 seconds on the second, 
 // and so on, until your reach either 20 retries or 5 minutes.
-client = agent.Retrying(client, 1 * time.Second, 5 * time.Minute, 20)
+client = client.Retrying(client, 1 * time.Second, 5 * time.Minute, 20)
 
 // golang.org/x/time/rate is a great rate limiting library.
 limiter := rate.NewLimiter(10, 1)
 
-client = agent.RateLimiting(client, limiter)
+client = client.RateLimiting(client, limiter)
 
 ag := agent.New("hardened")
 
@@ -119,13 +120,13 @@ import (
 	"os"
 
 	"github.com/ryszard/agency/agent"
-	"github.com/sashabaranov/go-openai"
+	"github.com/ryszard/agency/client/openai"
 	log "github.com/sirupsen/logrus"
 )
 
 func main() {
 	log.SetLevel(log.ErrorLevel)
-	client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
+	client := openai.New(os.Getenv("OPENAI_API_KEY"))
 
 	// Initialize a poet agent and a critic agent
 	poet := agent.New("poet",
