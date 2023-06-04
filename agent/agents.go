@@ -130,83 +130,31 @@ func (ag *BaseAgent) createRequest(options []Option) (Config, client.ChatComplet
 }
 
 func (ag *BaseAgent) Respond(ctx context.Context, options ...Option) (message string, err error) {
-
 	logger := log.WithField("agent", ag.name)
-
+	logger.Debug("Responding to message")
 	cfg, req := ag.createRequest(options)
 
 	if cfg.Memory != nil {
+		log.Debug("Using memory")
 		newMessages, err := cfg.Memory(ctx, cfg, ag.messages)
 		if err != nil {
+			log.WithError(err).Error("Failed to use memory")
 			return "", err
 		}
 		ag.messages = newMessages
 	}
 
-	if cfg.Stream() {
-		return ag.respondStream(ctx, options...)
-	}
-
 	logger.WithField("request", fmt.Sprintf("%+v", req)).Info("Sending request")
 	resp, err := cfg.Client.CreateChatCompletion(ctx, req)
-	logger.WithError(err).WithField("response", fmt.Sprintf("%+v", resp)).Debug("Received response from OpenAI API")
+	logger.WithError(err).WithField("response", fmt.Sprintf("%+v", resp)).Debug("Received response from client")
 	if err != nil {
 		logger.WithError(err).Error("Failed to send request to OpenAI API")
 		return "", err
 	}
-	logger.WithField("response", fmt.Sprintf("%+v", resp)).Info("Received response from OpenAI API")
+	logger.WithField("response", fmt.Sprintf("%+v", resp)).Info("Received response from client")
 
 	msg := resp.Choices[0]
 	ag.Append(msg)
 
 	return msg.Content, nil
-}
-
-func (ag *BaseAgent) respondStream(ctx context.Context, options ...Option) (string, error) {
-	return "", nil
-
-	// cfg, req := ag.createRequest(options)
-	// logger := log.WithField("actor", ag.name)
-
-	// // FIXME(ryszard): Fix the stream handling. It's currently broken.
-	// //req.Stream = true
-	// logger.WithFields(log.Fields{
-	// 	"request": fmt.Sprintf("%+v", req),
-	// 	"stream":  true,
-	// }).Info("RespondStream: Sending request")
-	// stream, err := cfg.Client.CreateChatCompletionStream(ctx, req)
-	// if err != nil {
-	// 	return "", err
-	// }
-
-	// defer stream.Close()
-
-	// var b strings.Builder
-
-	// for {
-	// 	r, err := stream.Recv()
-	// 	if errors.Is(err, io.EOF) {
-	// 		break
-	// 	} else if err != nil {
-	// 		return "", err
-	// 	}
-	// 	//logger.WithField("stream response", fmt.Sprintf("%+v", r)).Trace("Received response from OpenAI API")
-	// 	delta := r.Choices[0].Delta.Content
-	// 	if _, err := b.WriteString(delta); err != nil {
-	// 		return "", err
-	// 	}
-	// 	if _, err := cfg.Output.Write([]byte(delta)); err != nil {
-	// 		return "", err
-	// 	}
-
-	// }
-	// cfg.Output.Write([]byte("\n\n"))
-
-	// message := client.Message{
-	// 	Content: b.String(),
-	// 	Role:    openai.ChatMessageRoleAssistant,
-	// }
-
-	// ag.Append(message)
-	// return b.String(), nil
 }

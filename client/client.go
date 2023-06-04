@@ -34,12 +34,17 @@ type ChatCompletionRequest struct {
 	// for the model.
 	CustomParams map[string]interface{} `json:"params"`
 
-	// Stream is a writer to which the API should write the response as it
-	// appears. The API will still return the response as a whole.
+	// If Stream is not nil, the client will use the streaming API. The client
+	// should write the message content from the server as it appears on the
+	// wire to Stream, and then still return the whole message.
 	Stream io.Writer `json:"-"` // This should not be used when hashing.
 }
 
-// Client is an interface for the OpenAI API client. It's main purpose is to
+func (r ChatCompletionRequest) WantsStreaming() bool {
+	return r.Stream != nil
+}
+
+// Client is an interface for the LLM API client. It's main purpose is to
 // make testing easier.
 type Client interface {
 	CreateChatCompletion(ctx context.Context, req ChatCompletionRequest) (ChatCompletionResponse, error)

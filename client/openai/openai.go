@@ -2,10 +2,14 @@ package openai
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
+	"strings"
 
 	"github.com/ryszard/agency/client"
 	"github.com/sashabaranov/go-openai"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -44,11 +48,57 @@ func (cl *Client) CreateChatCompletion(ctx context.Context, request client.ChatC
 	if err != nil {
 		return client.ChatCompletionResponse{}, err
 	}
+	if request.WantsStreaming() {
+		return cl.createChatCompletionStream(ctx, req, request.Stream)
+	}
 	resp, err := cl.client.CreateChatCompletion(ctx, req)
 	if err != nil {
 		return client.ChatCompletionResponse{}, err
 	}
 	return TranslateResponse(resp), nil
+}
+
+func (cl *Client) createChatCompletionStream(ctx context.Context, req openai.ChatCompletionRequest, w io.Writer) (client.ChatCompletionResponse, error) {
+	req.Stream = true
+
+	log.WithFields(log.Fields{
+		"request": fmt.Sprintf("%+v", req),
+		"stream":  true,
+	}).Info("RespondStream: Sending request")
+	stream, err := cl.client.CreateChatCompletionStream(ctx, req)
+	if err != nil {
+		return client.ChatCompletionResponse{}, err
+	}
+
+	defer stream.Close()
+
+	var b strings.Builder
+
+	for {
+		r, err := stream.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		} else if err != nil {
+			return client.ChatCompletionResponse{}, err
+		}
+		//logger.WithField("stream response", fmt.Sprintf("%+v", r)).Trace("Received response from OpenAI API")
+		delta := r.Choices[0].Delta.Content
+		if _, err := b.WriteString(delta); err != nil {
+			return client.ChatCompletionResponse{}, err
+		}
+		if _, err := w.Write([]byte(delta)); err != nil {
+			return client.ChatCompletionResponse{}, err
+		}
+
+	}
+	w.Write([]byte("\n\n"))
+
+	message := client.Message{
+		Content: b.String(),
+		Role:    client.Assistant,
+	}
+
+	return client.ChatCompletionResponse{Choices: []client.Message{message}}, nil
 }
 
 var roleMapping = map[client.Role]string{

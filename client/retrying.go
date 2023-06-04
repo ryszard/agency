@@ -15,7 +15,7 @@ func retry(client *retryingClient, fn func() (any, error)) (any, error) {
 		if err == nil {
 			return resp, nil
 		}
-		log.WithError(err).Error("Error from OpenAI API")
+		log.WithError(err).Error("Error from the API")
 		wait := time.Duration(waitMultiplier) * client.baseWait
 		log.WithField("wait", wait).Info("Waiting before retrying")
 		if wait > client.maxWait {
@@ -43,6 +43,9 @@ func Retrying(client Client, baseWait time.Duration, maxWait time.Duration, maxR
 	if maxRetries == 0 {
 		panic("maxRetries must not be 0")
 	}
+	if client == nil {
+		panic("client must not be nil")
+	}
 	return &retryingClient{
 		client:     client,
 		baseWait:   baseWait,
@@ -54,7 +57,10 @@ func Retrying(client Client, baseWait time.Duration, maxWait time.Duration, maxR
 func (client *retryingClient) CreateChatCompletion(ctx context.Context, req ChatCompletionRequest) (ChatCompletionResponse, error) {
 	log.WithField("req", req).Info("CreateChatCompletion")
 	resp, err := retry(client, func() (any, error) {
+		log.Trace("Calling client.client.CreateChatCompletion")
+		log.WithField("client", client.client).Trace("here")
 		return client.client.CreateChatCompletion(ctx, req)
+
 	})
 	if err != nil {
 		return ChatCompletionResponse{}, err

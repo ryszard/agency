@@ -19,17 +19,8 @@ type Config struct {
 	// other fields
 	Client client.Client `json:"-"`
 
-	// Output is the writer to which the agent will write its output. If nil,
-	// the agent's output will be discarded. This is useful for streaming.
-	Output io.Writer `json:"-"`
-
 	// Memory is the agent's memory.
 	Memory Memory `json:"-"`
-}
-
-// Stream returns true if the agent is configured to stream its output.
-func (cfg Config) Stream() bool {
-	return cfg.Output != nil
 }
 
 func (ac Config) chatCompletionRequest() client.ChatCompletionRequest {
@@ -101,14 +92,14 @@ var _ io.Writer = nullWriter{}
 // Note that this will cause the agent to use streaming calls to the OpenAI API.
 func WithStreaming(w io.Writer) Option {
 	return func(ac *Config) {
-		ac.Output = w
+		ac.RequestTemplate.Stream = w
 	}
 }
 
 // WithoutStreaming suppresses streaming of the agent's responses.
 func WithoutStreaming() Option {
 	return func(ac *Config) {
-		ac.Output = nil
+		ac.RequestTemplate.Stream = nil
 	}
 }
 
