@@ -20,11 +20,12 @@ import (
 )
 
 var (
-	question    = flag.String("question", `For the following names, please concatenate the first letter of the name, and the last letter of the surname: "Ryszard Szopa", "Bill Clinton", "Sam Harris", "Barack Obama". To that, concatenate the length of the name and the Python interpreter version.`, "question to ask")
-	model       = flag.String("model", "gpt-3.5-turbo", "model to use")
-	maxTokens   = flag.Int("max_tokens", 2500, "maximum context length. Note that this should be enough to fit the question and the system prompt.")
-	temperature = flag.Float64("temperature", 0.7, "temperature")
-	logLevel    = flag.String("log_level", "info", "log level")
+	question     = flag.String("question", `For the following names, please concatenate the first letter of the name, and the last letter of the surname: "Ryszard Szopa", "Bill Clinton", "Sam Harris", "Barack Obama". To that, concatenate the length of the name and the Python interpreter version.`, "question to ask")
+	model        = flag.String("model", "gpt-3.5-turbo", "model to use")
+	maxTokens    = flag.Int("max_tokens", 2500, "maximum context length. Note that this should be enough to fit the question and the system prompt.")
+	memoryTokens = flag.Int("memory_tokens", 1000, "number of tokens to keep in memory")
+	temperature  = flag.Float64("temperature", 0.7, "temperature")
+	logLevel     = flag.String("log_level", "info", "log level")
 
 	pythonPath = flag.String("python_path", "/opt/homebrew/anaconda3/bin/python", "path to a python interpreter")
 )
@@ -54,7 +55,7 @@ func main() {
 		agent.WithTemperature(float32(*temperature)),
 		agent.WithModel(*model),
 		agent.WithStreaming(os.Stdout),
-		agent.WithMemory(agent.TokenBufferMemory(.9)),
+		agent.WithMemory(agent.TokenBufferMemory(*memoryTokens)),
 	)
 
 	bash := bash.New("/bin/bash")

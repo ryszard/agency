@@ -163,9 +163,6 @@ func TestTokenBufferMemory(t *testing.T) {
 		{Role: client.Assistant, Content: "How can I assist you today?"},
 	}
 
-	fillRatio := 0.9
-
-	memory := TokenBufferMemory(fillRatio)
 	cfg := Config{RequestTemplate: client.ChatCompletionRequest{Model: "gpt-4"}}
 
 	// We will set MaxTokens to drop the user1 message
@@ -178,8 +175,6 @@ func TestTokenBufferMemory(t *testing.T) {
 		allTokens += tokenLen
 	}
 
-	allTokens = int(float64(allTokens) * fillRatio)
-
 	droppedMessage := messages[1]
 	droppedTokens, err := tokenCount(cfg, droppedMessage)
 	if err != nil {
@@ -187,6 +182,8 @@ func TestTokenBufferMemory(t *testing.T) {
 	}
 
 	cfg.RequestTemplate.MaxTokens = allTokens - droppedTokens + 1
+
+	memory := TokenBufferMemory(1.0)
 
 	bufferedMessages, err := memory(context.TODO(), cfg, messages)
 	if err != nil {

@@ -199,17 +199,12 @@ func partitionByTokenLimit(
 	return newMessages, droppedMessages, nil
 }
 
-// TokenBufferMemory will keep messages that contain at most MaxTokens *
-// fillRatio tokens (taken form the config). It will keep all the system
-// messages, and the last message. If this is impossible, it will return an
-// error. If fillRatio is not in the range (0, 1], this function will panic.
-func TokenBufferMemory(fillRatio float64) Memory {
-	if fillRatio <= 0 || fillRatio > 1 {
-		panic("fillRatio must be in the range (0, 1]")
-	}
+// TokenBufferMemory will keep messages that contain at most maxTokens. It will
+// keep all the system messages, and the last message. If this is impossible, it
+// will return an error.
+func TokenBufferMemory(maxTokens int) Memory {
 
 	return func(ctx context.Context, cfg Config, messages []client.Message) ([]client.Message, error) {
-		maxTokens := int(float64(cfg.RequestTemplate.MaxTokens) * fillRatio)
 
 		newMessages, droppedMessages, err := partitionByTokenLimit(cfg, messages, maxTokens, tokenCount)
 		if err != nil {
@@ -269,13 +264,9 @@ func parseSummary(message string) (string, error) {
 // Summarizer memory is a memory implementation that when the number of tokens
 // approaches MaxTokens * fillRatio, it will summarize the messages that it is
 // dropping. It will never drop system messages.
-func SummarizerMemoryWithTemplate(fillRatio float64, tmpl *template.Template, options ...Option) Memory {
-	if fillRatio <= 0 || fillRatio > 1 {
-		panic("fillRatio must be in the range (0, 1]")
-	}
+func SummarizerMemoryWithTemplate(maxTokens int, tmpl *template.Template, options ...Option) Memory {
 
 	return func(ctx context.Context, cfg Config, messages []client.Message) ([]client.Message, error) {
-		maxTokens := int(float64(cfg.RequestTemplate.MaxTokens) * fillRatio)
 
 		retainedMessages, droppedMessages, err := partitionByTokenLimit(cfg, messages, maxTokens, tokenCount)
 		if err != nil {
@@ -373,6 +364,6 @@ END NEW LINES
 You're not just adding to the previous summary, but integrating the new information into it, particularly noting any changes or additions to the user's requests or instructions. Your aim is to create a concise, evolving record of the conversation that tracks user's requests and the assistant's responses, while incorporating all relevant information.
 `
 
-func SummarizerMemory(fillRatio float64, options ...Option) Memory {
-	return SummarizerMemoryWithTemplate(fillRatio, template.Must(template.New("summarizer").Parse(summarizerTemplate)), options...)
+func SummarizerMemory(maxTokens int, options ...Option) Memory {
+	return SummarizerMemoryWithTemplate(maxTokens, template.Must(template.New("summarizer").Parse(summarizerTemplate)), options...)
 }
