@@ -12,23 +12,43 @@ import (
 )
 
 func TestAgentSystem(t *testing.T) {
-	t.Run("System message is added to the actor's messages", func(t *testing.T) {
-		ag := &BaseAgent{}
-		systemMessage := "Test system message"
 
-		ag.System(systemMessage)
+	ag := &BaseAgent{}
+	systemMessage := "Test system message"
 
-		want := []client.Message{
-			{
-				Content: systemMessage,
-				Role:    "system",
-			},
-		}
+	ag.System(systemMessage)
 
-		if !reflect.DeepEqual(ag.Messages(), want) {
-			t.Errorf("got %v, want %v", ag.Messages(), want)
-		}
-	})
+	want := []client.Message{
+		{
+			Content: systemMessage,
+			Role:    client.System,
+		},
+	}
+
+	if !reflect.DeepEqual(ag.Messages(), want) {
+		t.Errorf("got %v, want %v", ag.Messages(), want)
+	}
+
+}
+
+func TestAgentInject(t *testing.T) {
+
+	ag := &BaseAgent{}
+	injected := "Fake agent message"
+
+	_, _ = ag.Inject(injected)
+
+	want := []client.Message{
+		{
+			Content: injected,
+			Role:    client.Assistant,
+		},
+	}
+
+	if !reflect.DeepEqual(ag.Messages(), want) {
+		t.Errorf("got %v, want %v", ag.Messages(), want)
+	}
+
 }
 
 type MockClient struct {

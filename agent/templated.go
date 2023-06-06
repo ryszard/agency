@@ -75,3 +75,12 @@ func (ag *TemplatedAgent) System(templateName string, data ...any) (string, erro
 
 	return ag.Agent.System(p)
 }
+
+func (ag *TemplatedAgent) Inject(templateName string, data ...any) (string, error) {
+	p, err := ag.getPrompt(templateName, data...)
+	if err != nil {
+		return "", err
+	}
+
+	return ag.Agent.Inject(p)
+}

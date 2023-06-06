@@ -38,6 +38,13 @@ type Agent interface {
 	// call, but won't affect subsequent calls.
 	Respond(ctx context.Context, options ...Option) (message string, err error)
 
+	// Inject introduces a message into the ongoing conversation, giving the
+	// impression that the agent produced it. This method returns the message as
+	// processed by the agent, which will be identical to the input in simple
+	// cases. However, depending on the agent's behavior, the returned message
+	// may be different from the input.
+	Inject(message string, data ...any) (string, error)
+
 	// Messages returns all messages that the agent has sent and received.
 	Messages() []client.Message
 
@@ -115,6 +122,17 @@ func (ag *BaseAgent) Listen(message string, data ...any) (string, error) {
 	})
 	log.WithField("messages", ag.Messages()).WithField("agent", ag.Name()).Trace("Listen Messages")
 
+	return message, nil
+}
+
+func (ag *BaseAgent) Inject(message string, data ...any) (string, error) {
+	if len(data) > 0 {
+		return "", errors.New("this agent does not support passing data to Inject")
+	}
+	ag.Append(client.Message{
+		Content: message,
+		Role:    client.Assistant,
+	})
 	return message, nil
 }
 
