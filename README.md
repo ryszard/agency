@@ -12,6 +12,7 @@ The heart and soul of Agency is the `agent.Agent` type. Its interface features t
 - `Listen`: communicates text to the AI.
 - `System`: sends a system message.
 - `Respond`: receives responses from the agent.
+- `Inject`: inject a message into the conversation history as if the agent had said it.
 
 Below is a simple usage example:
 
@@ -42,7 +43,7 @@ if err != nil {
 LLMs have a token limitation within their context window. Agency addresses this by providing the option to give an agent a memory, using the agent.WithMemory option:
 
 ```go
-ag := agent.New("Funes", agent.WithClient(client), agent.WithMemory(agent.TokenBufferMemory(0.9))
+ag := agent.New("Funes", agent.WithClient(client), agent.WithMemory(agent.TokenBufferMemory(3000))
 ```
 
 Agency offers several memory implementations (`agent.BufferMemory`, `agent.TokenBufferMemory`, and `agent.SummarizerMemory`). If these don't fit your needs, you can implement your own by adhering to the agent.Memory interface, which is simply a function that takes in a context, configuration, and list of openai.ChatCompletionMessage, and returns a modified list of messages.
