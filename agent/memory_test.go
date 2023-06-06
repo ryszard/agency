@@ -181,9 +181,8 @@ func TestTokenBufferMemory(t *testing.T) {
 		t.Errorf("Unexpected error in tokenCount: %v", err)
 	}
 
-	cfg.RequestTemplate.MaxTokens = allTokens - droppedTokens + 1
-
-	memory := TokenBufferMemory(1.0)
+	memoryLimit := allTokens - droppedTokens + 1
+	memory := TokenBufferMemory(memoryLimit)
 
 	bufferedMessages, err := memory(context.TODO(), cfg, messages)
 	if err != nil {
@@ -200,7 +199,7 @@ func TestTokenBufferMemory(t *testing.T) {
 		totalTokens += tokenLen
 	}
 
-	if totalTokens > cfg.RequestTemplate.MaxTokens {
+	if totalTokens > memoryLimit {
 		t.Errorf("Total tokens (%d) exceed MaxTokens (%d)", totalTokens, cfg.RequestTemplate.MaxTokens)
 	}
 
