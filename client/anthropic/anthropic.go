@@ -3,9 +3,11 @@ package anthropic
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/madebywelch/anthropic-go/pkg/anthropic"
 	"github.com/ryszard/agency/client"
+	log "github.com/sirupsen/logrus"
 )
 
 type Client struct {
@@ -27,12 +29,40 @@ func (cl *Client) CreateChatCompletion(ctx context.Context, req client.ChatCompl
 	if err != nil {
 		return client.ChatCompletionResponse{}, err
 	}
-
+	if req.WantsStreaming() {
+		return cl.createChatCompletionStream(ctx, req, req.Stream)
+	}
 	resp, err := cl.client.Complete(request, nil)
 	if err != nil {
 		return client.ChatCompletionResponse{}, err
 	}
 	return TranslateResponse(resp), nil
+}
+
+func (cl *Client) createChatCompletionStream(ctx context.Context, req client.ChatCompletionRequest, w io.Writer) (client.ChatCompletionResponse, error) {
+
+	request, err := TranslateRequest(&req)
+	if err != nil {
+		return client.ChatCompletionResponse{}, err
+	}
+
+	request.Stream = true
+	var response *anthropic.CompletionResponse
+
+	callback := func(resp *anthropic.CompletionResponse) error {
+		log.WithField("resp", fmt.Sprintf("%#v", resp)).Debug("Received response from server")
+		response = resp
+		if _, err := w.Write([]byte(resp.Delta)); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	_, err = cl.client.Complete(request, callback)
+	if err != nil {
+		return client.ChatCompletionResponse{}, err
+	}
+	return TranslateResponse(response), nil
 }
 
 func TranslateResponse(resp *anthropic.CompletionResponse) client.ChatCompletionResponse {
