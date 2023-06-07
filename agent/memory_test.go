@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/ryszard/agency/client"
@@ -98,8 +99,8 @@ func TestPartitionByTokenLimit(t *testing.T) {
 		{Role: "assistant", Content: " "},
 	}
 
-	tokenCount := func(cfg Config, msg client.Message) (int, error) {
-		return len(msg.Content), nil
+	tokenCount := func(s string) (int, error) {
+		return len(s), nil
 	}
 
 	retainedMessages, droppedMessages, _ := partitionByTokenLimit(Config{}, messages, 4, tokenCount)
@@ -137,8 +138,8 @@ func TestPartitionByTokenLimitLongerMessages(t *testing.T) {
 		{Role: "assistant", Content: " "},
 	}
 
-	tokenCount := func(cfg Config, msg client.Message) (int, error) {
-		return len(msg.Content), nil
+	tokenCount := func(s string) (int, error) {
+		return len(s), nil
 	}
 
 	retainedMessages, _, _ := partitionByTokenLimit(Config{}, messages, 4, tokenCount)
@@ -165,10 +166,15 @@ func TestTokenBufferMemory(t *testing.T) {
 
 	cfg := Config{RequestTemplate: client.ChatCompletionRequest{Model: "gpt-4"}}
 
+	tokenCount := func(s string) (int, error) {
+		// split the s into words and count the number of words
+		return len(strings.Split(s, " ")), nil
+	}
+
 	// We will set MaxTokens to drop the user1 message
 	allTokens := 0
 	for _, msg := range messages {
-		tokenLen, err := tokenCount(cfg, msg)
+		tokenLen, err := tokenCount(msg.Content)
 		if err != nil {
 			t.Errorf("Unexpected error in tokenCount: %v", err)
 		}
@@ -176,13 +182,13 @@ func TestTokenBufferMemory(t *testing.T) {
 	}
 
 	droppedMessage := messages[1]
-	droppedTokens, err := tokenCount(cfg, droppedMessage)
+	droppedTokens, err := tokenCount(droppedMessage.Content)
 	if err != nil {
 		t.Errorf("Unexpected error in tokenCount: %v", err)
 	}
 
 	memoryLimit := allTokens - droppedTokens + 1
-	memory := TokenBufferMemory(memoryLimit)
+	memory := TokenBufferMemory(memoryLimit, tokenCount)
 
 	bufferedMessages, err := memory(context.TODO(), cfg, messages)
 	if err != nil {
@@ -192,7 +198,7 @@ func TestTokenBufferMemory(t *testing.T) {
 	// Total token count in bufferedMessages should not exceed cfg.MaxTokens
 	totalTokens := 0
 	for _, msg := range bufferedMessages {
-		tokenLen, err := tokenCount(cfg, msg)
+		tokenLen, err := tokenCount(msg.Content)
 		if err != nil {
 			t.Errorf("Unexpected error in tokenCount: %v", err)
 		}

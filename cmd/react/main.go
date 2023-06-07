@@ -49,13 +49,18 @@ func main() {
 
 	cl = client.Cached(cl, cach)
 
+	tokenCounter, err := openai.TokenCounter(*model)
+	if err != nil {
+		log.WithError(err).Fatal("error")
+	}
+
 	ag := agent.New("pythonista",
 		agent.WithClient(cl),
 		agent.WithMaxTokens(*maxTokens),
 		agent.WithTemperature(float32(*temperature)),
 		agent.WithModel(*model),
 		agent.WithStreaming(os.Stdout),
-		agent.WithMemory(agent.TokenBufferMemory(*memoryTokens)),
+		agent.WithMemory(agent.TokenBufferMemory(*memoryTokens, tokenCounter)),
 	)
 
 	bash := bash.New("/bin/bash")

@@ -11,7 +11,6 @@ import (
 	"github.com/ryszard/agency/client"
 	"github.com/sashabaranov/go-openai"
 	log "github.com/sirupsen/logrus"
-	"github.com/tiktoken-go/tokenizer"
 )
 
 // Memory serves as the agent's memory. It receives a config and the agent's
@@ -85,34 +84,19 @@ func BufferMemory(n int) Memory {
 	}
 }
 
-type tokenCounter func(cfg Config, message client.Message) (int, error)
-
-// tokenCount returns the number of tokens in a message.
-func tokenCount(cfg Config, message client.Message) (int, error) {
-	codec, err := tokenizer.ForModel(tokenizer.Model(cfg.RequestTemplate.Model))
-	if err != nil {
-		return 0, err
-	}
-
-	ids, _, err := codec.Encode(message.Content)
-	if err != nil {
-		return 0, err
-	}
-
-	return len(ids), nil
-}
+type TokenCounter func(string) (int, error)
 
 func partitionByTokenLimit(
 	cfg Config,
 	messages []client.Message,
 	maxTokens int,
-	tokenCount tokenCounter,
+	tokenCount TokenCounter,
 ) ([]client.Message, []client.Message, error) {
 	// get the number of tokens in each messages
 	tokens := make([]int, len(messages))
 	total := 0
 	for i, message := range messages {
-		count, err := tokenCount(cfg, message)
+		count, err := tokenCount(message.Content)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -202,11 +186,11 @@ func partitionByTokenLimit(
 // TokenBufferMemory will keep messages that contain at most maxTokens. It will
 // keep all the system messages, and the last message. If this is impossible, it
 // will return an error.
-func TokenBufferMemory(maxTokens int) Memory {
+func TokenBufferMemory(maxTokens int, tokenCounter TokenCounter) Memory {
 
 	return func(ctx context.Context, cfg Config, messages []client.Message) ([]client.Message, error) {
 
-		newMessages, droppedMessages, err := partitionByTokenLimit(cfg, messages, maxTokens, tokenCount)
+		newMessages, droppedMessages, err := partitionByTokenLimit(cfg, messages, maxTokens, tokenCounter)
 		if err != nil {
 			return nil, err
 		}
@@ -264,11 +248,11 @@ func parseSummary(message string) (string, error) {
 // Summarizer memory is a memory implementation that when the number of tokens
 // approaches MaxTokens * fillRatio, it will summarize the messages that it is
 // dropping. It will never drop system messages.
-func SummarizerMemoryWithTemplate(maxTokens int, tmpl *template.Template, options ...Option) Memory {
+func SummarizerMemoryWithTemplate(maxTokens int, tmpl *template.Template, tokenCounter TokenCounter, options ...Option) Memory {
 
 	return func(ctx context.Context, cfg Config, messages []client.Message) ([]client.Message, error) {
 
-		retainedMessages, droppedMessages, err := partitionByTokenLimit(cfg, messages, maxTokens, tokenCount)
+		retainedMessages, droppedMessages, err := partitionByTokenLimit(cfg, messages, maxTokens, tokenCounter)
 		if err != nil {
 			return nil, err
 		}
@@ -364,6 +348,6 @@ END NEW LINES
 You're not just adding to the previous summary, but integrating the new information into it, particularly noting any changes or additions to the user's requests or instructions. Your aim is to create a concise, evolving record of the conversation that tracks user's requests and the assistant's responses, while incorporating all relevant information.
 `
 
-func SummarizerMemory(maxTokens int, options ...Option) Memory {
-	return SummarizerMemoryWithTemplate(maxTokens, template.Must(template.New("summarizer").Parse(summarizerTemplate)), options...)
+func SummarizerMemory(maxTokens int, tokenCounter TokenCounter, options ...Option) Memory {
+	return SummarizerMemoryWithTemplate(maxTokens, template.Must(template.New("summarizer").Parse(summarizerTemplate)), tokenCounter, options...)
 }
