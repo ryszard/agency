@@ -10,6 +10,7 @@ import (
 
 	"github.com/ryszard/agency/agent"
 	"github.com/ryszard/agency/client"
+	"github.com/ryszard/agency/client/exp/anthropic"
 	"github.com/ryszard/agency/client/exp/huggingface"
 	"github.com/ryszard/agency/client/openai"
 	log "github.com/sirupsen/logrus"
@@ -39,6 +40,11 @@ func main() {
 		cl = openai.New(os.Getenv("OPENAI_API_KEY"))
 	case "huggingface":
 		cl = huggingface.New(os.Getenv("HUGGINGFACE_API_KEY"))
+	case "anthropic":
+		cl, err = anthropic.New(os.Getenv("ANTHROPIC_API_KEY"))
+		if err != nil {
+			log.Fatal(err)
+		}
 	default:
 		log.Fatalf("unknown platform: %s", *platform)
 	}
@@ -50,10 +56,7 @@ func main() {
 		agent.WithModel(*model),
 		agent.WithMaxTokens(*maxTokens),
 		agent.WithTemperature(float32(*temperature)),
-		agent.WithCustomParams(map[string]interface{}{
-			"repetition_penalty": 40.0,
-			"wait_for_model":     true,
-		}),
+
 		//agent.WithMemory(agent.SummarizerMemory(0.5)),
 	)
 
