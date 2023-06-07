@@ -12,13 +12,15 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+type Model string
+
 const (
-	GPT432K0314       = "gpt-4-32k-0314"
-	GPT432K           = "gpt-4-32k"
-	GPT40314          = "gpt-4-0314"
-	GPT4              = "gpt-4"
-	GPT3Dot5Turbo0301 = "gpt-3.5-turbo-0301"
-	GPT3Dot5Turbo     = "gpt-3.5-turbo"
+	GPT432K0314       Model = "gpt-4-32k-0314"
+	GPT432K           Model = "gpt-4-32k"
+	GPT40314          Model = "gpt-4-0314"
+	GPT4                    = "gpt-4"
+	GPT3Dot5Turbo0301       = "gpt-3.5-turbo-0301"
+	GPT3Dot5Turbo           = "gpt-3.5-turbo"
 )
 
 type Client struct {

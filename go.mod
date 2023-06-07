@@ -11,6 +11,7 @@ require (
 )
 
 require (
+	github.com/daulet/tokenizers v0.4.3 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dlclark/regexp2 v1.10.0 // indirect
 	github.com/kr/pretty v0.1.0 // indirect
