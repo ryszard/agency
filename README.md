@@ -3,7 +3,7 @@
 
 ## 🎯 Overview
 
-Agency is a Go package designed to provide an idiomatic interface to various LLM providers (currently supporting OpenAI and, experimentally, 🤗Hugging Face). The package aims to simplify the creation and management of Language Learning Model (LLM)-based agents, making it easier for you to work with multiple agents and manage their data flow. It hopes to enable easier implementation of autonomous agent systems, similar to AutoGPT or BabyAGI, to solve a variety of tasks.
+Agency is a Go package designed to provide an idiomatic interface to various LLM providers (currently supporting OpenAI and, experimentally, Anthropic and 🤗Hugging Face). The package aims to simplify the creation and management of Language Learning Model (LLM)-based agents, making it easier for you to work with multiple agents and manage their data flow. It hopes to enable easier implementation of autonomous agent systems, similar to AutoGPT or BabyAGI, to solve a variety of tasks.
 
 It also provides some features one may need to deploy the code into production, like caching, retrying, or rate limiting.
 
@@ -43,10 +43,10 @@ if err != nil {
 LLMs have a token limitation within their context window. Agency addresses this by providing the option to give an agent a memory, using the agent.WithMemory option:
 
 ```go
-ag := agent.New("Funes", agent.WithClient(client), agent.WithMemory(agent.TokenBufferMemory(3000))
+ag := agent.New("Funes", agent.WithClient(client), agent.WithMemory(agent.TokenBufferMemory(3000, agent.NaiveTokenCounter(1.55))
 ```
 
-Agency offers several memory implementations (`agent.BufferMemory`, `agent.TokenBufferMemory`, and `agent.SummarizerMemory`). If these don't fit your needs, you can implement your own by adhering to the agent.Memory interface, which is simply a function that takes in a context, configuration, and list of openai.ChatCompletionMessage, and returns a modified list of messages.
+Agency offers several memory implementations (`agent.BufferMemory`, `agent.TokenBufferMemory`, and `agent.SummarizerMemory`). If these don't fit your needs, you can implement your own by adhering to the `agent.Memory` interface, which is simply a function that takes in a context, configuration, and list of `openai.ChatCompletionMessage`, and returns a modified list of messages.
 
 ### 🚀Optimizing Performance and Reliability
 
