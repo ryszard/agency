@@ -86,6 +86,18 @@ func BufferMemory(n int) Memory {
 
 type TokenCounter func(string) (int, error)
 
+// NaiveTokenCounter returns a token counter that estimates the number of tokens
+// in a string by splitting it by spaces, counting the resulting fragments, and
+// multiplying it by the ratio. While this is imperfect, it is fast and
+// sufficient for most use cases, and avoids dependending on a tokenizer (which
+// may be a headache). Experimentally, for GPT-4 and GPT3.5-turbo a good number
+// seems to be 1.55, and 1.7 for Claude (for English).
+func NaiveTokenCounter(ratio float64) TokenCounter {
+	return func(s string) (int, error) {
+		return int(float64(len(strings.Split(s, " "))) * ratio), nil
+	}
+}
+
 func partitionByTokenLimit(
 	cfg Config,
 	messages []client.Message,
