@@ -2,8 +2,28 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"io"
 )
+
+// RetryableError is an error from the API that can be retried.
+type RetryableError struct {
+	originalError error
+}
+
+func (r RetryableError) Error() string {
+	return fmt.Sprintf("retryable: %v", r.originalError)
+}
+
+func (r RetryableError) Unwrap() error {
+	return r.originalError
+}
+
+func Retryable(err error) error {
+	return &RetryableError{
+		originalError: err,
+	}
+}
 
 type Role string
 
@@ -44,8 +64,9 @@ func (r ChatCompletionRequest) WantsStreaming() bool {
 	return r.Stream != nil
 }
 
-// Client is an interface for the LLM API client. It's main purpose is to
-// make testing easier.
+// Client is an interface for the LLM API client. Any methods that return errors
+// should return a RetryableError (by calling Retryable) if the error is
+// retryable, or any other error if it is not.
 type Client interface {
 	CreateChatCompletion(ctx context.Context, req ChatCompletionRequest) (ChatCompletionResponse, error)
 

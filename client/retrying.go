@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -10,12 +11,22 @@ import (
 
 func retry(client *retryingClient, fn func() (any, error)) (any, error) {
 	waitMultiplier := 1
+	var lastErr error
 	for i := 0; i < client.maxRetries; i++ {
 		resp, err := fn()
 		if err == nil {
 			return resp, nil
 		}
 		log.WithError(err).Error("Error from the API")
+		lastErr = err
+
+		// Check if error is retryable
+		var rerr *RetryableError
+		if !errors.As(err, &rerr) {
+			// If error is not retryable, return it immediately
+			return nil, err
+		}
+
 		wait := time.Duration(waitMultiplier) * client.baseWait
 		log.WithField("wait", wait).Info("Waiting before retrying")
 		if wait > client.maxWait {
@@ -25,7 +36,7 @@ func retry(client *retryingClient, fn func() (any, error)) (any, error) {
 		waitMultiplier *= 2
 	}
 
-	return nil, errors.New("max retries exceeded")
+	return nil, fmt.Errorf("max retries exceeded for error: %w", lastErr)
 }
 
 type retryingClient struct {
