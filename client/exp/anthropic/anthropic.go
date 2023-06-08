@@ -2,6 +2,7 @@ package anthropic
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
@@ -79,6 +80,13 @@ func (cl *Client) CreateChatCompletion(ctx context.Context, req client.ChatCompl
 	return TranslateResponse(resp), nil
 }
 
+func maybeWrapError(err error) error {
+	if errors.Is(err, anthropic.ErrAnthropicRateLimit) || errors.Is(err, anthropic.ErrAnthropicInternalServer) {
+		return client.Retryable(err)
+	}
+	return err
+}
+
 func (cl *Client) createChatCompletionStream(ctx context.Context, req client.ChatCompletionRequest, w io.Writer) (client.ChatCompletionResponse, error) {
 
 	request, err := TranslateRequest(&req)
@@ -100,8 +108,9 @@ func (cl *Client) createChatCompletionStream(ctx context.Context, req client.Cha
 
 	_, err = cl.client.Complete(request, callback)
 	if err != nil {
-		return client.ChatCompletionResponse{}, err
+		return client.ChatCompletionResponse{}, maybeWrapError(err)
 	}
+	w.Write([]byte("\n"))
 	return TranslateResponse(response), nil
 }
 

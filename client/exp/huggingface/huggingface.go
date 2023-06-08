@@ -14,6 +14,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// FIXME(ryszard): Implement retryable errors.
+
 type Client struct {
 	token   string
 	http    *http.Client

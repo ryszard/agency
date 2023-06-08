@@ -45,6 +45,15 @@ func (Client) SupportsStreaming() bool {
 
 var _ client.Client = (*Client)(nil)
 
+func maybeWrapError(err error) error {
+	e := &openai.APIError{}
+	if errors.As(err, &e) && e.HTTPStatusCode == 429 || e.HTTPStatusCode == 500 {
+		return client.Retryable(err)
+	}
+	return err
+
+}
+
 func (cl *Client) CreateChatCompletion(ctx context.Context, request client.ChatCompletionRequest) (client.ChatCompletionResponse, error) {
 	req, err := TranslateRequest(request)
 	if err != nil {
@@ -55,7 +64,7 @@ func (cl *Client) CreateChatCompletion(ctx context.Context, request client.ChatC
 	}
 	resp, err := cl.client.CreateChatCompletion(ctx, req)
 	if err != nil {
-		return client.ChatCompletionResponse{}, err
+		return client.ChatCompletionResponse{}, maybeWrapError(err)
 	}
 	return TranslateResponse(resp), nil
 }
