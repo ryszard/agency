@@ -11,7 +11,6 @@ import (
 )
 
 func main() {
-	log.SetLevel(log.ErrorLevel)
 	client := openai.New(os.Getenv("OPENAI_API_KEY"))
 
 	// Initialize a poet agent and a critic agent

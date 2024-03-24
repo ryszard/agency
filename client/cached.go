@@ -45,7 +45,6 @@ func hash(r any) ([]byte, error) {
 
 // CreateChatCompletion implements Client
 func (c *CachedClient) CreateChatCompletion(ctx context.Context, req ChatCompletionRequest) (ChatCompletionResponse, error) {
-	log.SetLevel(log.DebugLevel)
 	hash, err := hash(req)
 	log.WithField("hash", fmt.Sprintf("%x", hash)).Debug("hashing request")
 	if err != nil {

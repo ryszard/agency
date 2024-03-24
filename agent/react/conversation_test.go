@@ -6,7 +6,6 @@ import (
 )
 
 func TestAppendStepsFromText_Action(t *testing.T) {
-	//log.SetLevel(log.TraceLevel)
 
 	for _, tt := range []struct {
 		name string
