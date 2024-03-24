@@ -79,13 +79,13 @@ func (reactor *ReAct) Answer(ctx context.Context, question string, options ...ag
 			return err
 		}
 
-		log.WithField("msg", msg).Info("received message")
+		log.WithField("msg", msg).Debug("received message")
 
 		newEntries, err := Parse(msg)
 		if err != nil {
 			return err
 		}
-		log.WithField("newEntries", fmt.Sprintf("%+v", newEntries)).Info("parsed message")
+		log.WithField("newEntries", fmt.Sprintf("%+v", newEntries)).Debug("parsed message")
 		actionNotLast := false
 		observationsOutput := false
 		for i, step := range newEntries {

@@ -75,7 +75,7 @@ func (cl *Client) createChatCompletionStream(ctx context.Context, req openai.Cha
 	log.WithFields(log.Fields{
 		"request": fmt.Sprintf("%+v", req),
 		"stream":  true,
-	}).Info("RespondStream: Sending request")
+	}).Debug("RespondStream: Sending request")
 	stream, err := cl.client.CreateChatCompletionStream(ctx, req)
 	if err != nil {
 		return client.ChatCompletionResponse{}, err

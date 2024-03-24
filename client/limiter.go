@@ -28,7 +28,7 @@ func RateLimiting(client Client, limiter Limiter) Client {
 }
 
 func (client *rateLimitingClient) CreateChatCompletion(ctx context.Context, req ChatCompletionRequest) (ChatCompletionResponse, error) {
-	log.WithField("req", req).Info("CreateChatCompletion")
+	log.WithField("req", req).Debug("CreateChatCompletion")
 	if err := client.limiter.Wait(ctx); err != nil {
 		return ChatCompletionResponse{}, err
 	}

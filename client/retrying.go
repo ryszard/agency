@@ -66,7 +66,7 @@ func Retrying(client Client, baseWait time.Duration, maxWait time.Duration, maxR
 }
 
 func (client *retryingClient) CreateChatCompletion(ctx context.Context, req ChatCompletionRequest) (ChatCompletionResponse, error) {
-	log.WithField("req", req).Info("CreateChatCompletion")
+	log.WithField("req", req).Debug("CreateChatCompletion")
 	resp, err := retry(client, func() (any, error) {
 		log.Trace("Calling client.client.CreateChatCompletion")
 		log.WithField("client", client.client).Trace("here")

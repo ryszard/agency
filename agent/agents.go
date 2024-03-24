@@ -162,14 +162,14 @@ func (ag *BaseAgent) Respond(ctx context.Context, options ...Option) (message st
 		ag.messages = newMessages
 	}
 
-	logger.WithField("request", fmt.Sprintf("%+v", req)).Info("Sending request")
+	logger.WithField("request", fmt.Sprintf("%+v", req)).Debug("Sending request")
 	resp, err := cfg.Client.CreateChatCompletion(ctx, req)
 	logger.WithError(err).WithField("response", fmt.Sprintf("%+v", resp)).Debug("Received response from client")
 	if err != nil {
 		logger.WithError(err).Error("Failed to send request to OpenAI API")
 		return "", err
 	}
-	logger.WithField("response", fmt.Sprintf("%+v", resp)).Info("Received response from client")
+	logger.WithField("response", fmt.Sprintf("%+v", resp)).Debug("Received response from client")
 
 	msg := resp.Choices[0]
 	ag.Append(msg)
